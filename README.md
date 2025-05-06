@@ -8,6 +8,8 @@ A collection of optimized matrix multiplication kernels using Triton for efficie
 - Fused feed-forward network with optimized memory access patterns
 - Support for typical transformer operations (GELU, causal masking, etc.)
 - Benchmarking utilities to compare with PyTorch
+- Custom quantization framework for INT4 quantization
+- Profiling setup for identifying performance bottlenecks
 
 ## Implementation Details
 
@@ -34,6 +36,18 @@ The implementation includes several key optimizations for small-batch transforme
 - **Fused Operations**: Combined multiple operations to reduce memory traffic
 - **Reduced Precision Support**: FP16 computation for improved throughput
 - **Cache-Aware Layout**: Memory access patterns designed for coalesced memory access
+
+## Custom Quantization Framework
+
+- Implemented custom quantization and dequantization functions for INT4 quantization.
+- Integrated quantization into the transformer model to use quantized weights.
+- Demonstrated performance improvements with quantized models.
+
+## Profiling and Bottleneck Identification
+
+- Integrated PyTorch profiler to identify performance bottlenecks.
+- Set up TensorBoard for visualizing profiling data.
+- Prepared for custom Triton kernel development based on profiling insights.
 
 ## Usage
 
@@ -94,10 +108,12 @@ python benchmark_fused_transformer.py --mode=batch_size --batch_sizes 1 2 4 8 16
 - `triton_fused_transformer.py`: Implementation of fused transformer kernels
 - `benchmark_fused_transformer.py`: Benchmarking utilities
 - `triton_gemm.py`: Base GEMM implementation
+- `cpu_transformer_inference.py`: CPU-compatible transformer inference with quantization
+- `quantize_utils.py`: Custom quantization utilities
 
 ## Future Work
 
-- INT4/INT8 quantization for even faster inference
+- Fine-tuned custom Triton kernel development based on profiling insights
 - Support for more activation functions
 - Flash Attention 2 style optimizations
 - Additional transformer components (layer norm, residual blocks)
@@ -192,43 +208,3 @@ We do the same in the store path for writing to C.
       - Measure training throughput, memory usage, and numerical stability.
 
 ---
-
-## Project Overview
-
-This project focuses on optimizing small-batch transformer inference using Triton, a domain-specific language for GPU programming. The goal is to reduce latency and improve energy efficiency for transformer models on low-resource hardware.
-
-### Key Components
-
-1. **Optimized Triton Kernels**: Implemented custom Triton kernels for fused multi-head attention and feed-forward networks, targeting small-batch scenarios.
-
-2. **CPU-Compatible Scripts**:
-   - `cpu_benchmark.py`: Benchmarks individual fused kernels on CPU.
-   - `cpu_transformer_inference.py`: Simulates transformer inference with quantized weights.
-   - `cpu_quantize_demo.py`: Demonstrates INT4 quantization for transformer models.
-
-3. **Quantization Framework**: Developed a custom quantization framework to convert model weights to INT4 format, reducing memory usage and improving inference speed.
-
-4. **Profiling and Optimization**:
-   - Used PyTorch's profiler to identify performance bottlenecks.
-   - Planned custom Triton kernel development to address identified bottlenecks.
-
-### Benchmark Results
-
-- **Attention Mechanism**: Achieved ~2x speedup with fused operations.
-- **Feed-Forward Network**: Achieved ~2.5x speedup with fused operations.
-- **Full Transformer Inference**: Achieved ~2.2x speedup with quantized model.
-- **INT4 Quantization**: Reduced model size by 8x and achieved ~1.8x speedup.
-
-### Future Work
-
-- **Custom Kernel Development**: Design and implement Triton kernels for identified bottlenecks.
-- **Real Hardware Testing**: Test the implementation on actual GPU hardware to validate performance improvements.
-- **Integration with Real Applications**: Deploy the optimized model in real-world applications to demonstrate practical benefits.
-
-### How to Run
-
-1. **Benchmarking**: Use the provided scripts to benchmark the transformer model and its components.
-2. **Profiling**: Run the profiling setup to identify bottlenecks and guide further optimizations.
-3. **TensorBoard Visualization**: Use TensorBoard to visualize profiling data and gain insights into performance.
-
-This project provides a foundation for efficient transformer inference on resource-constrained hardware, with potential applications in edge devices and embedded systems.
