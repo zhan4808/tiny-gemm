@@ -95,6 +95,17 @@ python benchmark_fused_transformer.py --mode=seq_length --seq_lengths 128 256 51
 python benchmark_fused_transformer.py --mode=batch_size --batch_sizes 1 2 4 8 16
 ```
 
+## Benchmark Results
+
+The benchmarking results demonstrate the performance improvements achieved with the optimized Triton kernels and custom quantization framework. The following image illustrates the comparison of inference times between the original and quantized models:
+
+![INT4 Benchmark Results](int4_benchmark.png)
+
+- The quantized model shows significant speedup over the original model, particularly for small batch sizes and sequence lengths.
+- The fused operations and memory optimizations contribute to reduced inference times and improved throughput.
+
+These results highlight the effectiveness of the optimizations in enabling efficient transformer inference on resource-constrained hardware.
+
 ## Requirements
 
 - PyTorch >= 1.13
