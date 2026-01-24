@@ -1,0 +1,4 @@
+triton
+numpy
+matplotlib
+tqdm

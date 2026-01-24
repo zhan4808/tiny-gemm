@@ -117,9 +117,27 @@ These results highlight the effectiveness of the optimizations in enabling effic
 ## Project Structure
 
 - `triton_fused_transformer.py`: Implementation of fused transformer kernels
+- `triton_gemm.py`: Packed INT4 GEMM kernel (Triton)
 - `benchmark_fused_transformer.py`: Benchmarking utilities
+- `benchmark_gemm.py`: Packed INT4 GEMM benchmark
 - `cpu_transformer_inference.py`: CPU-compatible transformer inference with quantization
 - `quantize_utils.py`: Custom quantization utilities
+- `tiny_gemm/ops.py`: PyTorch dispatcher registration for fused ops
+- `tiny_gemm/quantization/packed_int4.py`: True packed INT4 utilities
+
+## Torch Op Registration
+
+This project registers fused attention and FFN as custom PyTorch ops using
+`torch.library` so they can be wired into higher-level compilation stacks.
+
+```python
+import tiny_gemm.ops  # registers ops
+out = torch.ops.tiny_gemm.fused_attention(q, k, v, True, 0.0)
+```
+
+## GPU Container (NVIDIA CUDA)
+
+See `docker/README.md` for a reproducible CUDA environment that works on cloud GPUs.
 
 ## Future Work
 

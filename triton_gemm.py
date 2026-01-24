@@ -1,19 +1,27 @@
-import math
 import torch
 import triton
 import triton.language as tl
 
+from tiny_gemm.quantization.packed_int4 import pack_int4_signed, quantize_per_tensor_int4
+
 @triton.jit
-def kernel_gemm_int4(
-    A_ptr, B_ptr, C_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_bk, stride_bn,
-    stride_cm, stride_cn,
+def kernel_gemm_packed_int4(
+    A_ptr,
+    B_ptr,
+    C_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_bk,
+    stride_bn,
+    stride_cm,
+    stride_cn,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
     BLOCK_K: tl.constexpr,
-    GROUP_SIZE_M: tl.constexpr
+    GROUP_SIZE_M: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
     grid_m = (M + BLOCK_M - 1) // BLOCK_M
@@ -31,7 +39,7 @@ def kernel_gemm_int4(
     n_start = pid_n * BLOCK_N
 
     offs_m = m_start + tl.arange(0, BLOCK_M)
-    offs_k = tl.arange(0, BLOCK_K)
+    offs_k = tl.arange(0, BLOCK_K // 2)
     offs_n = n_start + tl.arange(0, BLOCK_N)
 
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
@@ -39,78 +47,102 @@ def kernel_gemm_int4(
     k_blocks = (K + BLOCK_K - 1) // BLOCK_K
 
     for kb in range(k_blocks):
-        k_offset = kb * BLOCK_K
+        k_offset = kb * (BLOCK_K // 2)
 
         a_row_mask = offs_m[:, None] < M
-        a_col_mask = (k_offset + offs_k[None, :]) < K
+        a_col_mask = (k_offset + offs_k[None, :]) < (K // 2)
         a_mask = a_row_mask & a_col_mask
 
-        a_ptrs = A_ptr + (offs_m[:, None] * stride_am) + ((k_offset + offs_k[None, :]) * stride_ak)
-        a_tile = tl.load(a_ptrs, mask=a_mask, other=0).to(tl.int4)
+        a_ptrs = A_ptr + (offs_m[:, None] * stride_am) + (
+            (k_offset + offs_k[None, :]) * stride_ak
+        )
+        a_packed = tl.load(a_ptrs, mask=a_mask, other=0).to(tl.uint8)
 
-        b_row_mask = (k_offset + offs_k[:, None]) < K
+        b_row_mask = (k_offset + offs_k[:, None]) < (K // 2)
         b_col_mask = offs_n[None, :] < N
         b_mask = b_row_mask & b_col_mask
 
-        b_ptrs = B_ptr + ((k_offset + offs_k[:, None]) * stride_bk) + (offs_n[None, :] * stride_bn)
-        b_tile = tl.load(b_ptrs, mask=b_mask, other=0).to(tl.int4)
+        b_ptrs = B_ptr + ((k_offset + offs_k[:, None]) * stride_bk) + (
+            offs_n[None, :] * stride_bn
+        )
+        b_packed = tl.load(b_ptrs, mask=b_mask, other=0).to(tl.uint8)
 
-        acc += tl.dot(a_tile.to(tl.float32), b_tile.to(tl.float32))
+        a_lo = a_packed & 0x0F
+        a_hi = (a_packed >> 4) & 0x0F
+        b_lo = b_packed & 0x0F
+        b_hi = (b_packed >> 4) & 0x0F
 
-    c_tile = acc.to(tl.int4)
+        a_lo = tl.where(a_lo >= 8, a_lo - 16, a_lo).to(tl.float32)
+        a_hi = tl.where(a_hi >= 8, a_hi - 16, a_hi).to(tl.float32)
+        b_lo = tl.where(b_lo >= 8, b_lo - 16, b_lo).to(tl.float32)
+        b_hi = tl.where(b_hi >= 8, b_hi - 16, b_hi).to(tl.float32)
+
+        acc += tl.dot(a_lo, b_lo) + tl.dot(a_hi, b_hi)
 
     c_row_mask = offs_m[:, None] < M
     c_col_mask = offs_n[None, :] < N
     c_mask = c_row_mask & c_col_mask
 
     c_ptrs = C_ptr + (offs_m[:, None] * stride_cm) + (offs_n[None, :] * stride_cn)
-    tl.store(c_ptrs, c_tile, mask=c_mask)
+    tl.store(c_ptrs, acc, mask=c_mask)
 
 
-def triton_gemm_int4(
-    A: torch.Tensor,
-    B: torch.Tensor,
-    C: torch.Tensor,
+def triton_gemm_packed_int4(
+    A_packed: torch.Tensor,
+    B_packed: torch.Tensor,
+    K: int,
     BLOCK_M=128,
     BLOCK_N=128,
     BLOCK_K=32,
-    GROUP_SIZE_M=8
-):
-    assert A.is_cuda and B.is_cuda and C.is_cuda, "All tensors must be on GPU"
-    assert A.dtype == torch.int4 and B.dtype == torch.int4 and C.dtype == torch.int4
+    GROUP_SIZE_M=8,
+) -> torch.Tensor:
+    """GEMM with packed signed INT4 (2 values per byte).
 
-    M, K = A.shape
-    Kb, N = B.shape
-    Mb, Nb = C.shape
-    assert K == Kb and M == Mb and N == Nb
+    A_packed: [M, K//2] uint8
+    B_packed: [K//2, N] uint8
+    """
+    assert A_packed.is_cuda and B_packed.is_cuda, "All tensors must be on GPU"
+    assert A_packed.dtype == torch.uint8 and B_packed.dtype == torch.uint8
+    assert K % 2 == 0, "K must be even for packed INT4"
 
-    A_ptr = A.data_ptr()
-    B_ptr = B.data_ptr()
-    C_ptr = C.data_ptr()
+    M, Kp = A_packed.shape
+    Kb, N = B_packed.shape
+    assert Kp == K // 2 and Kb == K // 2
 
-    stride_am, stride_ak = A.stride()
-    stride_bk, stride_bn = B.stride()
+    C = torch.empty((M, N), device=A_packed.device, dtype=torch.float32)
+
+    stride_am, stride_ak = A_packed.stride()
+    stride_bk, stride_bn = B_packed.stride()
     stride_cm, stride_cn = C.stride()
 
     grid_size_fn = lambda meta: (
-        (M + meta['BLOCK_M'] - 1) // meta['BLOCK_M'] *
-        (N + meta['BLOCK_N'] - 1) // meta['BLOCK_N'] //
-        meta['GROUP_SIZE_M'],
-     )
+        (M + meta["BLOCK_M"] - 1) // meta["BLOCK_M"]
+        * (N + meta["BLOCK_N"] - 1) // meta["BLOCK_N"]
+        // meta["GROUP_SIZE_M"],
+    )
 
-    kernel_gemm_int4[grid_size_fn](
-        A_ptr, B_ptr, C_ptr,
-        M, N, K,
-        stride_am, stride_ak,
-        stride_bk, stride_bn,
-        stride_cm, stride_cn,
+    kernel_gemm_packed_int4[grid_size_fn](
+        A_packed,
+        B_packed,
+        C,
+        M,
+        N,
+        K,
+        stride_am,
+        stride_ak,
+        stride_bk,
+        stride_bn,
+        stride_cm,
+        stride_cn,
         BLOCK_M=BLOCK_M,
         BLOCK_N=BLOCK_N,
         BLOCK_K=BLOCK_K,
         GROUP_SIZE_M=GROUP_SIZE_M,
         num_stages=2,
-        num_warps=2
-     )
+        num_warps=2,
+    )
+
+    return C
 
 
 
@@ -122,19 +154,22 @@ if __name__ == "__main__":
     M, N, K = 256, 256, 256
     
     # Create random input
-    A = torch.randn((M, K), device='cuda', dtype=torch.int)
-    B = torch.randn((K, N), device='cuda', dtype=torch.int)
-    # Output buffer
-    C = torch.zeros((M, N), device='cuda', dtype=torch.int)
+    A_fp = torch.randn((M, K), device="cuda", dtype=torch.float16)
+    B_fp = torch.randn((K, N), device="cuda", dtype=torch.float16)
 
-    # Ground truth from PyTorch (FP16) with cuBLAS
-    # For validation only. For large M,N,K this can be slow in Python mode.
-    # Also note that default cublas might accumulate in FP32 internally,
-    # so they should match fairly closely.
-    C_ref = (A @ B)
+    # Quantize to signed INT4 and pack
+    A_q, A_scale = quantize_per_tensor_int4(A_fp)
+    B_q, B_scale = quantize_per_tensor_int4(B_fp)
+    A_packed = pack_int4_signed(A_q, axis=1)
+    B_packed = pack_int4_signed(B_q, axis=0)
+
+    # Ground truth (dequantized)
+    C_ref = (A_q.float() * A_scale) @ (B_q.float() * B_scale)
 
     # Run our Triton kernel
-    triton_gemm_int4(A, B, C, BLOCK_M=128, BLOCK_N=128, BLOCK_K=32, GROUP_SIZE_M=8)
+    C = triton_gemm_packed_int4(
+        A_packed, B_packed, K, BLOCK_M=128, BLOCK_N=128, BLOCK_K=32, GROUP_SIZE_M=8
+    )
 
     # Compare
     max_abs_diff = (C - C_ref).abs().max().item()
@@ -164,11 +199,11 @@ if __name__ == "__main__":
 
     # Triton kernel
     def triton_run():
-        triton_gemm_int4(A, B, C)
+        triton_gemm_packed_int4(A_packed, B_packed, K)
 
     # cuBLAS kernel
     def cublas_run():
-        torch.matmul(A, B)
+        torch.matmul(A_q.float() * A_scale, B_q.float() * B_scale)
 
     triton_time = benchmark_op(triton_run)
     cublas_time = benchmark_op(cublas_run)

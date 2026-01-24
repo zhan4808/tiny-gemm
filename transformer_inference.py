@@ -2,7 +2,19 @@ import torch
 import torch.nn as nn
 import math
 import time
+
+import tiny_gemm.ops  # registers torch.library ops
 from triton_fused_transformer import fused_attention, fused_ffn
+
+
+def _fused_attention_dispatch(q, k, v, causal, dropout_p):
+    return torch.ops.tiny_gemm.fused_attention(q, k, v, causal, float(dropout_p))
+
+
+def _fused_ffn_dispatch(x, w1, b1, w2, b2, activation):
+    activation_map = {"gelu": 0, "relu": 1, "silu": 2}
+    activation_int = activation_map.get(activation, 0)
+    return torch.ops.tiny_gemm.fused_ffn(x, w1, b1, w2, b2, activation_int)
 
 class FusedTransformerLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout=0.1, activation="gelu"):
@@ -45,7 +57,7 @@ class FusedTransformerLayer(nn.Module):
         nn.init.xavier_uniform_(self.w1)
         nn.init.xavier_uniform_(self.w2)
     
-    def forward(self, x, use_triton=True, causal=True):
+    def forward(self, x, use_triton=True, causal=True, use_dispatch=False):
         # x: [batch_size, seq_len, d_model]
         batch_size, seq_len, _ = x.shape
         
@@ -60,7 +72,14 @@ class FusedTransformerLayer(nn.Module):
             v = torch.matmul(x, self.wv).reshape(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
             
             # Fused attention
-            attn_output = fused_attention(q, k, v, causal=causal, dropout_p=self.dropout)
+            if use_dispatch:
+                attn_output = _fused_attention_dispatch(
+                    q, k, v, causal=causal, dropout_p=self.dropout
+                )
+            else:
+                attn_output = fused_attention(
+                    q, k, v, causal=causal, dropout_p=self.dropout
+                )
             
             # Project back
             attn_output = attn_output.transpose(1, 2).reshape(batch_size, seq_len, self.d_model)
@@ -74,7 +93,24 @@ class FusedTransformerLayer(nn.Module):
             x = self.ffn_norm(x)
             
             # Fused FFN
-            x = fused_ffn(x, self.w1, self.b1, self.w2, self.b2, activation=self.activation)
+            if use_dispatch:
+                x = _fused_ffn_dispatch(
+                    x,
+                    self.w1,
+                    self.b1,
+                    self.w2,
+                    self.b2,
+                    activation=self.activation,
+                )
+            else:
+                x = fused_ffn(
+                    x,
+                    self.w1,
+                    self.b1,
+                    self.w2,
+                    self.b2,
+                    activation=self.activation,
+                )
             
             # Residual connection
             x = residual + x
@@ -160,7 +196,7 @@ class FusedTransformer(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         self.pos_encoding.data = pe.unsqueeze(0)
     
-    def forward(self, input_ids, use_triton=True):
+    def forward(self, input_ids, use_triton=True, use_dispatch=False):
         # input_ids: [batch_size, seq_len]
         batch_size, seq_len = input_ids.shape
         
@@ -172,7 +208,7 @@ class FusedTransformer(nn.Module):
         
         # Apply transformer layers
         for layer in self.layers:
-            x = layer(x, use_triton=use_triton)
+            x = layer(x, use_triton=use_triton, use_dispatch=use_dispatch)
         
         # Final layer norm
         x = self.final_norm(x)
