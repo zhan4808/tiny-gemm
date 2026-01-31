@@ -203,6 +203,13 @@ python3 tools/compile_bench.py --mode attention --backend inductor
 python3 tools/compile_bench.py --mode ffn --backend inductor
 ```
 
+Results (A10G, batch=1, seq=128):
+
+| Mode | Eager (ms) | Compile (ms) | Speedup |
+|---|---:|---:|---:|
+| attention | 0.080 | 0.168 | 0.48x |
+| ffn | 2.131 | 2.137 | 1.00x |
+
 ## Requirements
 
 - PyTorch >= 1.13
