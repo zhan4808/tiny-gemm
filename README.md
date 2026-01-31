@@ -120,9 +120,15 @@ Figure notes:
 - **Heatmap M=1**: per-shape speedup for the M=1 decode case (rows=K, cols=N).
 - **Speedup by M**: median speedup with interquartile range across M=1/2/4/8.
 
-Profiling summary tables (from `results_m1248.csv`):
-- `figures/family_summary.md` — per-family median speedups and triton times by M.
-- `figures/kernel_time_by_shape.md` — per-shape triton time + best config.
+Profiling summary tables:
+- `figures/family_summary_nsys.md` — per-family median CUDA time (Nsight Systems).
+- `figures/kernel_time_by_shape_nsys.md` — per-shape CUDA time for `kernel_gemm_packed_int4` (Nsight Systems).
+- `figures/top_kernels_by_cuda_time.md` — top shapes by CUDA time (Nsight Systems).
+
+Table figures:
+
+![Per-Family Summary (Nsight)](figures/family_summary_nsys_table.png)
+![Top Kernels by CUDA Time (Nsight)](figures/top_kernels_by_cuda_time.png)
 
 ## Benchmark Results
 

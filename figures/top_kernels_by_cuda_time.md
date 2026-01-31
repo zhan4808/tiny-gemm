@@ -1,0 +1,22 @@
+| M | K | N | family | kernel | total_ms |
+|---:|---:|---:|---|---|---:|
+| 8 | 21504 | 5376 | ffn_down | kernel_gemm_packed_int4 | 747.078018 |
+| 4 | 21504 | 5376 | ffn_down | kernel_gemm_packed_int4 | 654.867867 |
+| 2 | 21504 | 5376 | ffn_down | kernel_gemm_packed_int4 | 604.613617 |
+| 1 | 21504 | 5376 | ffn_down | kernel_gemm_packed_int4 | 569.885908 |
+| 8 | 14336 | 5120 | ffn_down | kernel_gemm_packed_int4 | 565.803589 |
+| 8 | 14336 | 4096 | ffn_down | kernel_gemm_packed_int4 | 549.176295 |
+| 8 | 5376 | 21504 | ffn_up | kernel_gemm_packed_int4 | 544.301543 |
+| 8 | 16384 | 2048 | ffn_down | kernel_gemm_packed_int4 | 516.703118 |
+| 4 | 14336 | 5120 | ffn_down | kernel_gemm_packed_int4 | 477.270779 |
+| 4 | 16384 | 2048 | ffn_down | kernel_gemm_packed_int4 | 476.762034 |
+| 4 | 14336 | 4096 | ffn_down | kernel_gemm_packed_int4 | 475.397944 |
+| 2 | 16384 | 2048 | ffn_down | kernel_gemm_packed_int4 | 471.709497 |
+| 1 | 16384 | 2048 | ffn_down | kernel_gemm_packed_int4 | 470.388016 |
+| 8 | 5120 | 14336 | ffn_up | kernel_gemm_packed_int4 | 439.268022 |
+| 2 | 14336 | 5120 | ffn_down | kernel_gemm_packed_int4 | 439.145530 |
+| 2 | 14336 | 4096 | ffn_down | kernel_gemm_packed_int4 | 435.740706 |
+| 1 | 14336 | 5120 | ffn_down | kernel_gemm_packed_int4 | 433.748502 |
+| 1 | 14336 | 4096 | ffn_down | kernel_gemm_packed_int4 | 432.558491 |
+| 4 | 5376 | 21504 | ffn_up | kernel_gemm_packed_int4 | 426.038613 |
+| 8 | 11008 | 2048 | ffn_down | kernel_gemm_packed_int4 | 395.546995 |
