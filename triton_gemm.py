@@ -260,40 +260,106 @@ def _shape_family(n: int, k: int) -> str:
     return "ffn_down"
 
 
+# BEGIN STATIC CONFIGS
 _STATIC_CONFIGS: dict[tuple[str, str], dict[str, int]] = {
-    ("m1", "kv_proj"): {
-        "BLOCK_M": 8,
-        "BLOCK_N": 64,
-        "BLOCK_K": 128,
-        "GROUP_SIZE_M": 4,
-        "num_warps": 4,
-        "num_stages": 4,
-    },
-    ("m1", "q_proj"): {
-        "BLOCK_M": 8,
-        "BLOCK_N": 64,
-        "BLOCK_K": 128,
-        "GROUP_SIZE_M": 4,
-        "num_warps": 4,
-        "num_stages": 4,
-    },
     ("m1", "ffn_down"): {
+        "BLOCK_K": 128,
         "BLOCK_M": 8,
         "BLOCK_N": 64,
-        "BLOCK_K": 128,
         "GROUP_SIZE_M": 4,
-        "num_warps": 4,
         "num_stages": 4,
+        "num_warps": 4,
     },
     ("m1", "ffn_up"): {
+        "BLOCK_K": 128,
         "BLOCK_M": 4,
         "BLOCK_N": 64,
-        "BLOCK_K": 128,
         "GROUP_SIZE_M": 2,
-        "num_warps": 4,
         "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("m1", "kv_proj"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("m1", "q_proj"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("medium", "ffn_down"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("medium", "ffn_up"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("medium", "kv_proj"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("medium", "q_proj"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("small", "ffn_down"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("small", "ffn_up"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 4,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 2,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("small", "kv_proj"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
+    },
+    ("small", "q_proj"): {
+        "BLOCK_K": 128,
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "GROUP_SIZE_M": 4,
+        "num_stages": 4,
+        "num_warps": 4,
     },
 }
+# END STATIC CONFIGS
 
 
 def triton_gemm_packed_int4(
