@@ -125,6 +125,61 @@ The current results are summarized in the INT4 GEMM figures above. Those plots a
 - Profiling (torch.profiler + Nsight) to drive kernel changes and quantify wins.
 - `torch.library` op registration for integration is supported; `torch.compile` backend experiments are planned after kernel stability.
 
+## Roadmap
+
+### Phase 1 — Kernel & Benchmark Core (now)
+- Expand/validate INT4 GEMM configs across M ∈ {1,2,4,8}.
+- Lock static configs per shape family from CSV sweeps.
+- Track regressions with CSV + figures.
+
+### Phase 2 — Profiling & Bottleneck Attribution
+- Add a profiling harness with `torch.profiler` for GEMM sweeps.
+- Capture Nsight Systems timelines for kernel launch/latency analysis.
+- Use profiler results to prune or add autotune configs.
+
+### Phase 3 — Integration & Backend Experiments
+- Keep `torch.library` ops stable for integration points.
+- Explore `torch.compile`/Dynamo backend pathways after kernel stability.
+
+## Profiling (Quick Start)
+
+### torch.profiler
+
+```bash
+python3 - <<'EOF'
+import torch
+from torch.profiler import profile, ProfilerActivity
+from tiny_gemm.quantization.packed_int4 import pack_int4_signed, quantize_per_tensor_int4
+from triton_gemm import triton_gemm_packed_int4
+
+M, K, N = 1, 3072, 3072
+A = torch.randn((M, K), device="cuda", dtype=torch.float16)
+B = torch.randn((K, N), device="cuda", dtype=torch.float16)
+A_q, _ = quantize_per_tensor_int4(A)
+B_q, _ = quantize_per_tensor_int4(B)
+A_p = pack_int4_signed(A_q, axis=1)
+B_p = pack_int4_signed(B_q, axis=0)
+
+with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+    triton_gemm_packed_int4(A_p, B_p, K)
+
+print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+EOF
+```
+
+Or run the scripted harness:
+
+```bash
+python3 tools/profile_gemm.py --m 1 --k 3072 --n 3072 --out_dir profiles
+```
+
+### Nsight Systems (optional)
+
+```bash
+nsys profile -o nsys_int4_gemm \
+  python3 benchmark_gemm.py --suite smallmodel --m_values 1 --max_shapes 8
+```
+
 ## Requirements
 
 - PyTorch >= 1.13
