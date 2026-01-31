@@ -16,6 +16,7 @@ def fused_attention_kernel(
     stride_ob, stride_oh, stride_on, stride_od,
     # Meta-parameters
     BLOCK_N: tl.constexpr, BLOCK_D: tl.constexpr,
+    SCALE: tl.constexpr,
     ATTENTION_DROPOUT_RATE: tl.constexpr
 ):
     """
@@ -41,7 +42,7 @@ def fused_attention_kernel(
     offs_d = tl.arange(0, BLOCK_D)
     
     # Scale factor for Q·K^T
-    scale = 1.0 / math.sqrt(D)
+    scale = SCALE
     
     # Load Q block for current batch, head, sequence position
     q_ptrs = Q_ptr + batch_id * stride_qb + head_id * stride_qh + offs_n[:, None] * stride_qn + offs_d[None, :] * stride_qd
@@ -91,7 +92,11 @@ def fused_attention_kernel(
         scores = tl.where(causal_mask, scores, float("-inf"))
         
         # Apply softmax to get attention weights
-        attn_weights = tl.softmax(scores, axis=1)
+        max_scores = tl.max(scores, axis=1)
+        scores = scores - max_scores[:, None]
+        exp_scores = tl.exp(scores)
+        denom = tl.sum(exp_scores, axis=1)
+        attn_weights = exp_scores / denom[:, None]
         
         # Apply attention dropout if specified
         if ATTENTION_DROPOUT_RATE > 0.0:
@@ -107,6 +112,7 @@ def fused_attention_kernel(
             v_sub = tl.load(V_ptr + batch_id * stride_vb + head_id * stride_vh + 
                            offs_k[:, None] * stride_vn + offs_d_inner[None, :] * stride_vd,
                            mask=(offs_k[:, None] < N) & (offs_d_inner[None, :] < D), other=0.0)
+            v_sub = v_sub.to(tl.float32)
             
             acc_sub = tl.dot(attn_weights, v_sub)
             
@@ -129,6 +135,7 @@ def fused_ffn_kernel(
     stride_ob, stride_on, stride_od,
     # Meta-parameters
     BLOCK_N: tl.constexpr, BLOCK_D: tl.constexpr,
+    D_HIDDEN: tl.constexpr,
     ACTIVATION: tl.constexpr
 ):
     """
@@ -155,66 +162,8 @@ def fused_ffn_kernel(
     offs_n = n_id + tl.arange(0, BLOCK_N)
     n_mask = offs_n < N
     
-    # Compute first linear layer + activation: GELU(X·W1 + B1)
-    hidden_activations = tl.zeros([BLOCK_N, D_hidden], dtype=tl.float32)
-    
-    # Process input in blocks
-    for d_in_block in range(0, tl.cdiv(D_in, BLOCK_D)):
-        d_in_start = d_in_block * BLOCK_D
-        offs_d_in = d_in_start + tl.arange(0, BLOCK_D)
-        d_in_mask = offs_d_in < D_in
-        
-        # Load X block for current batch, sequence
-        x_ptrs = X_ptr + batch_id * stride_xb + offs_n[:, None] * stride_xn + offs_d_in[None, :] * stride_xd
-        x_mask = n_mask[:, None] & d_in_mask[None, :]
-        x = tl.load(x_ptrs, mask=x_mask, other=0.0)
-        
-        # Compute partial contribution to X·W1
-        for d_hidden_block in range(0, tl.cdiv(D_hidden, BLOCK_D)):
-            d_hidden_start = d_hidden_block * BLOCK_D
-            offs_d_hidden = d_hidden_start + tl.arange(0, BLOCK_D)
-            d_hidden_mask = offs_d_hidden < D_hidden
-            
-            # Load W1 block
-            w1_ptrs = W1_ptr + offs_d_in[:, None] * stride_w1i + offs_d_hidden[None, :] * stride_w1o
-            w1_mask = d_in_mask[:, None] & d_hidden_mask[None, :]
-            w1 = tl.load(w1_ptrs, mask=w1_mask, other=0.0)
-            
-            # Update hidden_activations
-            partial_hidden = tl.dot(x, w1)
-            hidden_mask = n_mask[:, None] & d_hidden_mask[None, :]
-            hidden_activations += tl.where(hidden_mask, partial_hidden, 0.0)
-    
-    # Load bias and add
-    for d_hidden_block in range(0, tl.cdiv(D_hidden, BLOCK_D)):
-        d_hidden_start = d_hidden_block * BLOCK_D
-        offs_d_hidden = d_hidden_start + tl.arange(0, BLOCK_D)
-        d_hidden_mask = offs_d_hidden < D_hidden
-        
-        b1 = tl.load(B1_ptr + offs_d_hidden, mask=d_hidden_mask, other=0.0)
-        
-        # Add bias to hidden_activations
-        hidden_mask = n_mask[:, None] & d_hidden_mask[None, :]
-        hidden_slice = hidden_activations[:, d_hidden_start:d_hidden_start+BLOCK_D]
-        hidden_slice = tl.where(hidden_mask, hidden_slice + b1[None, :], hidden_slice)
-        
-        # Apply activation function (GELU)
-        if ACTIVATION == 0:  # GELU
-            # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
-            sqrt_2_pi = 0.7978845608
-            hidden_slice = 0.5 * hidden_slice * (1.0 + tl.tanh(sqrt_2_pi * (hidden_slice + 0.044715 * hidden_slice * hidden_slice * hidden_slice)))
-        elif ACTIVATION == 1:  # ReLU
-            hidden_slice = tl.maximum(hidden_slice, 0.0)
-        elif ACTIVATION == 2:  # SiLU/Swish
-            hidden_slice = hidden_slice * tl.sigmoid(hidden_slice)
-            
-        # Store back the activated values
-        hidden_activations[:, d_hidden_start:d_hidden_start+BLOCK_D] = hidden_slice
-    
-    # Compute second linear layer: (GELU(X·W1 + B1))·W2 + B2
-    output = tl.zeros([BLOCK_N, D_in], dtype=tl.float32)
-    
-    # Process hidden layer in blocks
+    # Compute second linear layer block-by-block.
+    # Note: to keep compile-time shapes, we compute hidden blocks on the fly.
     for d_out_block in range(0, tl.cdiv(D_in, BLOCK_D)):
         d_out_start = d_out_block * BLOCK_D
         offs_d_out = d_out_start + tl.arange(0, BLOCK_D)
@@ -227,13 +176,41 @@ def fused_ffn_kernel(
             offs_d_hidden = d_hidden_start + tl.arange(0, BLOCK_D)
             d_hidden_mask = offs_d_hidden < D_hidden
             
-            # Load activated hidden layer 
-            hidden_slice = hidden_activations[:, d_hidden_start:d_hidden_start+BLOCK_D]
+            # Accumulate hidden slice for this block
+            hidden_slice = tl.zeros([BLOCK_N, BLOCK_D], dtype=tl.float32)
+            for d_in_block in range(0, tl.cdiv(D_in, BLOCK_D)):
+                d_in_start = d_in_block * BLOCK_D
+                offs_d_in = d_in_start + tl.arange(0, BLOCK_D)
+                d_in_mask = offs_d_in < D_in
+                
+                x_ptrs = X_ptr + batch_id * stride_xb + offs_n[:, None] * stride_xn + offs_d_in[None, :] * stride_xd
+                x_mask = n_mask[:, None] & d_in_mask[None, :]
+                x = tl.load(x_ptrs, mask=x_mask, other=0.0)
+                
+                w1_ptrs = W1_ptr + offs_d_in[:, None] * stride_w1i + offs_d_hidden[None, :] * stride_w1o
+                w1_mask = d_in_mask[:, None] & d_hidden_mask[None, :]
+                w1 = tl.load(w1_ptrs, mask=w1_mask, other=0.0)
+                
+                partial_hidden = tl.dot(x, w1)
+                hidden_mask = n_mask[:, None] & d_hidden_mask[None, :]
+                hidden_slice = hidden_slice + tl.where(hidden_mask, partial_hidden, 0.0)
+            
+            b1 = tl.load(B1_ptr + offs_d_hidden, mask=d_hidden_mask, other=0.0)
+            hidden_mask = n_mask[:, None] & d_hidden_mask[None, :]
+            hidden_slice = tl.where(hidden_mask, hidden_slice + b1[None, :], hidden_slice)
+            
+            if ACTIVATION == 0:  # GELU (sigmoid approximation)
+                hidden_slice = hidden_slice * tl.sigmoid(1.702 * hidden_slice)
+            elif ACTIVATION == 1:  # ReLU
+                hidden_slice = tl.maximum(hidden_slice, 0.0)
+            elif ACTIVATION == 2:  # SiLU/Swish
+                hidden_slice = hidden_slice * tl.sigmoid(hidden_slice)
             
             # Load W2 block
             w2_ptrs = W2_ptr + offs_d_hidden[:, None] * stride_w2i + offs_d_out[None, :] * stride_w2o
             w2_mask = d_hidden_mask[:, None] & d_out_mask[None, :]
             w2 = tl.load(w2_ptrs, mask=w2_mask, other=0.0)
+            w2 = w2.to(tl.float32)
             
             # Update output
             out_partial += tl.dot(hidden_slice, w2)
@@ -293,13 +270,14 @@ def fused_attention(
     
     # Launch kernel
     fused_attention_kernel[grid](
-        q.data_ptr(), k.data_ptr(), v.data_ptr(), output.data_ptr(),
+        q, k, v, output,
         batch_size, num_heads, seq_len, head_dim,
         q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k.stride(0), k.stride(1), k.stride(2), k.stride(3),
         v.stride(0), v.stride(1), v.stride(2), v.stride(3),
         output.stride(0), output.stride(1), output.stride(2), output.stride(3),
         BLOCK_N=BLOCK_N, BLOCK_D=BLOCK_D,
+        SCALE=1.0 / math.sqrt(head_dim),
         ATTENTION_DROPOUT_RATE=dropout_p,
         num_warps=8
     )
@@ -365,13 +343,14 @@ def fused_ffn(
     
     # Launch kernel
     fused_ffn_kernel[grid](
-        x.data_ptr(), w1.data_ptr(), b1.data_ptr(), w2.data_ptr(), b2.data_ptr(), output.data_ptr(),
+        x, w1, b1, w2, b2, output,
         batch_size, seq_len, d_model, d_hidden,
         x.stride(0), x.stride(1), x.stride(2),
         w1.stride(0), w1.stride(1),
         w2.stride(0), w2.stride(1),
         output.stride(0), output.stride(1), output.stride(2),
         BLOCK_N=BLOCK_N, BLOCK_D=BLOCK_D,
+        D_HIDDEN=d_hidden,
         ACTIVATION=activation_int,
         num_warps=8
     )
