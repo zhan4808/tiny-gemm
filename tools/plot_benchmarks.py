@@ -89,6 +89,30 @@ def plot_speedup_heatmap_m1(rows, out_path: Path) -> None:
     plt.close(fig)
 
 
+def plot_speedup_by_m(rows, out_path: Path) -> None:
+    m_values = sorted({row["M"] for row in rows})
+    medians = []
+    p25 = []
+    p75 = []
+    for m in m_values:
+        speeds = [row["speedup"] for row in rows if row["M"] == m]
+        medians.append(float(np.median(speeds)))
+        p25.append(float(np.percentile(speeds, 25)))
+        p75.append(float(np.percentile(speeds, 75)))
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(m_values, medians, marker="o", label="median")
+    ax.fill_between(m_values, p25, p75, alpha=0.2, label="p25–p75")
+    ax.set_xlabel("M (batch size)")
+    ax.set_ylabel("Speedup (ref / triton)")
+    ax.set_title("INT4 GEMM Speedup by M")
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200)
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot Tiny-GEMM benchmark graphs")
     parser.add_argument("--csv", required=True)
@@ -102,6 +126,7 @@ def main() -> None:
     rows = load_rows(csv_path)
     plot_speedup_by_family(rows, out_dir / "int4_speedup_by_family.png")
     plot_speedup_heatmap_m1(rows, out_dir / "int4_speedup_heatmap_m1.png")
+    plot_speedup_by_m(rows, out_dir / "int4_speedup_by_m.png")
 
 
 if __name__ == "__main__":

@@ -113,6 +113,16 @@ Figures (A10G, per-tensor INT4, ref = dequantized FP16 matmul):
 
 ![INT4 Speedup by Shape Family](figures/int4_speedup_by_family.png)
 ![INT4 Speedup Heatmap M=1](figures/int4_speedup_heatmap_m1.png)
+![INT4 Speedup by M](figures/int4_speedup_by_m.png)
+
+Figure notes:
+- **Speedup by Shape Family**: distribution of speedups grouped into KV/Q/FFN families across M values.
+- **Heatmap M=1**: per-shape speedup for the M=1 decode case (rows=K, cols=N).
+- **Speedup by M**: median speedup with interquartile range across M=1/2/4/8.
+
+Profiling summary tables (from `results_m1248.csv`):
+- `figures/family_summary.md` — per-family median speedups and triton times by M.
+- `figures/kernel_time_by_shape.md` — per-shape triton time + best config.
 
 ## Benchmark Results
 

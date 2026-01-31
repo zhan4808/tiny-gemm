@@ -52,6 +52,7 @@ def main() -> None:
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
         for _ in range(args.active):
             run()
+            torch.cuda.synchronize()
     prof.export_chrome_trace(str(trace_path))
     table = prof.key_averages().table(sort_by="cuda_time_total", row_limit=15)
     table_path.write_text(table)
