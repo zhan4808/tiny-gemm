@@ -4,6 +4,50 @@ import triton.language as tl
 
 from tiny_gemm.quantization.packed_int4 import pack_int4_signed, quantize_per_tensor_int4
 
+_INT4_GEMM_CONFIGS = [
+    triton.Config(
+        {"BLOCK_M": 1, "BLOCK_N": 32, "BLOCK_K": 128, "GROUP_SIZE_M": 1},
+        num_warps=2,
+        num_stages=4,
+    ),
+    triton.Config(
+        {"BLOCK_M": 1, "BLOCK_N": 64, "BLOCK_K": 128, "GROUP_SIZE_M": 1},
+        num_warps=2,
+        num_stages=4,
+    ),
+    triton.Config(
+        {"BLOCK_M": 1, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+        num_warps=2,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_M": 1, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+        num_warps=4,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_M": 8, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
+        num_warps=4,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_M": 16, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
+        num_warps=4,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_M": 16, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 8},
+        num_warps=4,
+        num_stages=2,
+    ),
+    triton.Config(
+        {"BLOCK_M": 32, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 8},
+        num_warps=8,
+        num_stages=2,
+    ),
+]
+
+@triton.autotune(configs=_INT4_GEMM_CONFIGS, key=["M", "N", "K"])
 @triton.jit
 def kernel_gemm_packed_int4(
     A_ptr,
@@ -91,10 +135,12 @@ def triton_gemm_packed_int4(
     A_packed: torch.Tensor,
     B_packed: torch.Tensor,
     K: int,
-    BLOCK_M=128,
-    BLOCK_N=128,
-    BLOCK_K=32,
-    GROUP_SIZE_M=8,
+    BLOCK_M: int | None = None,
+    BLOCK_N: int | None = None,
+    BLOCK_K: int | None = None,
+    GROUP_SIZE_M: int | None = None,
+    num_warps: int | None = None,
+    num_stages: int | None = None,
 ) -> torch.Tensor:
     """GEMM with packed signed INT4 (2 values per byte).
 
@@ -121,6 +167,20 @@ def triton_gemm_packed_int4(
         // meta["GROUP_SIZE_M"],
     )
 
+    meta = {}
+    if BLOCK_M is not None:
+        meta["BLOCK_M"] = BLOCK_M
+    if BLOCK_N is not None:
+        meta["BLOCK_N"] = BLOCK_N
+    if BLOCK_K is not None:
+        meta["BLOCK_K"] = BLOCK_K
+    if GROUP_SIZE_M is not None:
+        meta["GROUP_SIZE_M"] = GROUP_SIZE_M
+    if num_warps is not None:
+        meta["num_warps"] = num_warps
+    if num_stages is not None:
+        meta["num_stages"] = num_stages
+
     kernel_gemm_packed_int4[grid_size_fn](
         A_packed,
         B_packed,
@@ -134,12 +194,7 @@ def triton_gemm_packed_int4(
         stride_bn,
         stride_cm,
         stride_cn,
-        BLOCK_M=BLOCK_M,
-        BLOCK_N=BLOCK_N,
-        BLOCK_K=BLOCK_K,
-        GROUP_SIZE_M=GROUP_SIZE_M,
-        num_stages=2,
-        num_warps=2,
+        **meta,
     )
 
     return C
