@@ -196,6 +196,13 @@ nsys profile -o nsys_int4_gemm \
   python3 benchmark_gemm.py --suite smallmodel --m_values 1 --max_shapes 8
 ```
 
+## torch.compile Experiments
+
+```bash
+python3 tools/compile_bench.py --mode attention --backend inductor
+python3 tools/compile_bench.py --mode ffn --backend inductor
+```
+
 ## Requirements
 
 - PyTorch >= 1.13
