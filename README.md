@@ -95,16 +95,35 @@ python benchmark_fused_transformer.py --mode=seq_length --seq_lengths 128 256 51
 python benchmark_fused_transformer.py --mode=batch_size --batch_sizes 1 2 4 8 16
 ```
 
+### INT4 GEMM Benchmarks (Small-Model Shapes)
+
+Generate the INT4 GEMM sweep across the 2025–2026 small-model matrix shapes:
+
+```bash
+python3 benchmark_gemm.py --suite smallmodel --m_values 1,2,4,8 --csv results_m1248.csv --disable_static
+```
+
+Produce summary figures from the CSV:
+
+```bash
+python3 tools/plot_benchmarks.py --csv results_m1248.csv --out_dir figures
+```
+
+Figures (A10G, per-tensor INT4, ref = dequantized FP16 matmul):
+
+![INT4 Speedup by Shape Family](figures/int4_speedup_by_family.png)
+![INT4 Speedup Heatmap M=1](figures/int4_speedup_heatmap_m1.png)
+
 ## Benchmark Results
 
-The benchmarking results demonstrate the performance improvements achieved with the optimized Triton kernels and custom quantization framework. The following image illustrates the comparison of inference times between the original and quantized models:
+The current results are summarized in the INT4 GEMM figures above. Those plots are generated from the `results_m1248.csv` sweep and reflect the latest small-model shape coverage on A10G.
 
-![INT4 Benchmark Results](int4_benchmark.png)
+## Current Focus
 
-- The quantized model shows significant speedup over the original model, particularly for small batch sizes and sequence lengths.
-- The fused operations and memory optimizations contribute to reduced inference times and improved throughput.
-
-These results highlight the effectiveness of the optimizations in enabling efficient transformer inference on resource-constrained hardware.
+- Triton kernel development and tuning for decode-heavy INT4 GEMM shapes.
+- INT4 packed GEMM exploration (weight-only), using the small-model shape suite.
+- Profiling (torch.profiler + Nsight) to drive kernel changes and quantify wins.
+- `torch.library` op registration for integration is supported; `torch.compile` backend experiments are planned after kernel stability.
 
 ## Requirements
 
