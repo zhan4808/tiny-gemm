@@ -24,12 +24,12 @@ def _make_attention_inputs(device):
     return q, k, v
 
 
-def _make_ffn_inputs(device, seq_len, d_model, d_hidden):
-    x = torch.randn(1, seq_len, d_model, device=device, dtype=torch.float16)
-    w1 = torch.randn(d_model, d_hidden, device=device, dtype=torch.float16)
-    b1 = torch.randn(d_hidden, device=device, dtype=torch.float16)
-    w2 = torch.randn(d_hidden, d_model, device=device, dtype=torch.float16)
-    b2 = torch.randn(d_model, device=device, dtype=torch.float16)
+def _make_ffn_inputs(device):
+    x = torch.randn(1, 128, 512, device=device, dtype=torch.float16)
+    w1 = torch.randn(512, 2048, device=device, dtype=torch.float16)
+    b1 = torch.randn(2048, device=device, dtype=torch.float16)
+    w2 = torch.randn(2048, 512, device=device, dtype=torch.float16)
+    b2 = torch.randn(512, device=device, dtype=torch.float16)
     return x, w1, b1, w2, b2
 
 
@@ -38,9 +38,6 @@ def main() -> None:
     parser.add_argument("--mode", choices=["attention", "ffn"], default="attention")
     parser.add_argument("--reps", type=int, default=50)
     parser.add_argument("--backend", type=str, default="inductor")
-    parser.add_argument("--seq_len", type=int, default=128)
-    parser.add_argument("--d_model", type=int, default=64)
-    parser.add_argument("--d_hidden", type=int, default=64)
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -55,9 +52,7 @@ def main() -> None:
             return torch.ops.tiny_gemm.fused_attention(q, k, v, True, 0.0)
 
     else:
-        x, w1, b1, w2, b2 = _make_ffn_inputs(
-            device, args.seq_len, args.d_model, args.d_hidden
-        )
+        x, w1, b1, w2, b2 = _make_ffn_inputs(device)
 
         def eager():
             return torch.ops.tiny_gemm.fused_ffn(x, w1, b1, w2, b2, 0)
