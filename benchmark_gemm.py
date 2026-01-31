@@ -1,10 +1,11 @@
 import argparse
+import csv
 import time
 
 import torch
 
 from tiny_gemm.quantization.packed_int4 import pack_int4_signed, quantize_per_tensor_int4
-from triton_gemm import triton_gemm_packed_int4
+from triton_gemm import get_best_config, triton_gemm_packed_int4
 
 
 def benchmark_op(op, warmup=5, rep=20):
@@ -60,7 +61,18 @@ SMALLMODEL_KN_PAIRS = [
 ]
 
 
-def _run_single(device, m, n, k, warmup, rep):
+def _format_config(config):
+    if config is None:
+        return ""
+    parts = []
+    for key in sorted(config.kwargs.keys()):
+        parts.append(f"{key}={config.kwargs[key]}")
+    parts.append(f"num_warps={config.num_warps}")
+    parts.append(f"num_stages={config.num_stages}")
+    return ",".join(parts)
+
+
+def _run_single(device, m, n, k, warmup, rep, use_static_config):
     if k % 2 != 0:
         raise ValueError("K must be even for packed INT4")
 
@@ -73,7 +85,9 @@ def _run_single(device, m, n, k, warmup, rep):
     B_packed = pack_int4_signed(B_q, axis=0)
 
     def triton_run():
-        triton_gemm_packed_int4(A_packed, B_packed, k)
+        triton_gemm_packed_int4(
+            A_packed, B_packed, k, use_static_config=use_static_config
+        )
 
     def ref_run():
         torch.matmul(A_q.float() * A_scale, B_q.float() * B_scale)
@@ -84,7 +98,17 @@ def _run_single(device, m, n, k, warmup, rep):
         else None
     )
     ref_time = benchmark_op(ref_run, warmup=warmup, rep=rep)
-    return ref_time, triton_time
+    best_config = None
+    if device.type == "cuda":
+        best_config = get_best_config(
+            m,
+            n,
+            k,
+            str(A_packed.dtype),
+            str(B_packed.dtype),
+            "torch.float32",
+        )
+    return ref_time, triton_time, best_config
 
 
 def _print_result(m, n, k, ref_time, triton_time):
@@ -97,6 +121,12 @@ def _print_result(m, n, k, ref_time, triton_time):
         print("  Triton benchmark skipped (CUDA not available).")
 
 
+def _parse_m_values(m_values: str):
+    if not m_values:
+        return SMALLMODEL_M_VALUES
+    return [int(v.strip()) for v in m_values.split(",") if v.strip()]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Benchmark packed INT4 GEMM")
     parser.add_argument("--suite", choices=["single", "smallmodel"], default="single")
@@ -106,26 +136,88 @@ def main():
     parser.add_argument("--warmup", type=int, default=5)
     parser.add_argument("--rep", type=int, default=20)
     parser.add_argument("--max_shapes", type=int, default=0)
+    parser.add_argument("--csv", type=str, default="")
+    parser.add_argument("--group_size", type=str, default="per_tensor")
+    parser.add_argument("--m_values", type=str, default="")
+    parser.add_argument("--disable_static", action="store_true")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    csv_writer = None
+    csv_file = None
+    if args.csv:
+        csv_file = open(args.csv, "w", newline="")
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(
+            [
+                "M",
+                "K",
+                "N",
+                "group_size",
+                "ref_ms",
+                "triton_ms",
+                "speedup",
+                "best_config",
+            ]
+        )
+    use_static_config = not args.disable_static
     if args.suite == "single":
-        ref_time, triton_time = _run_single(
-            device, args.m, args.n, args.k, args.warmup, args.rep
+        ref_time, triton_time, best_config = _run_single(
+            device,
+            args.m,
+            args.n,
+            args.k,
+            args.warmup,
+            args.rep,
+            use_static_config,
         )
         _print_result(args.m, args.n, args.k, ref_time, triton_time)
+        if csv_writer is not None:
+            speedup = ref_time / triton_time if triton_time else ""
+            csv_writer.writerow(
+                [
+                    args.m,
+                    args.k,
+                    args.n,
+                    args.group_size,
+                    f"{ref_time*1e3:.6f}",
+                    f"{triton_time*1e3:.6f}" if triton_time else "",
+                    f"{speedup:.6f}" if triton_time else "",
+                    _format_config(best_config),
+                ]
+            )
+            csv_file.close()
         return
 
     count = 0
-    for m in SMALLMODEL_M_VALUES:
+    m_values = _parse_m_values(args.m_values)
+    for m in m_values:
         for k, n in SMALLMODEL_KN_PAIRS:
             if args.max_shapes and count >= args.max_shapes:
+                if csv_file is not None:
+                    csv_file.close()
                 return
-            ref_time, triton_time = _run_single(
-                device, m, n, k, args.warmup, args.rep
+            ref_time, triton_time, best_config = _run_single(
+                device, m, n, k, args.warmup, args.rep, use_static_config
             )
             _print_result(m, n, k, ref_time, triton_time)
+            if csv_writer is not None:
+                speedup = ref_time / triton_time if triton_time else ""
+                csv_writer.writerow(
+                    [
+                        m,
+                        k,
+                        n,
+                        args.group_size,
+                        f"{ref_time*1e3:.6f}",
+                        f"{triton_time*1e3:.6f}" if triton_time else "",
+                        f"{speedup:.6f}" if triton_time else "",
+                        _format_config(best_config),
+                    ]
+                )
             count += 1
+    if csv_file is not None:
+        csv_file.close()
 
 
 if __name__ == "__main__":

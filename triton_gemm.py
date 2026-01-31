@@ -26,6 +26,21 @@ _INT4_GEMM_CONFIGS = [
         num_stages=3,
     ),
     triton.Config(
+        {"BLOCK_M": 2, "BLOCK_N": 64, "BLOCK_K": 128, "GROUP_SIZE_M": 2},
+        num_warps=2,
+        num_stages=4,
+    ),
+    triton.Config(
+        {"BLOCK_M": 4, "BLOCK_N": 64, "BLOCK_K": 128, "GROUP_SIZE_M": 2},
+        num_warps=4,
+        num_stages=4,
+    ),
+    triton.Config(
+        {"BLOCK_M": 8, "BLOCK_N": 64, "BLOCK_K": 128, "GROUP_SIZE_M": 4},
+        num_warps=4,
+        num_stages=4,
+    ),
+    triton.Config(
         {"BLOCK_M": 8, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
         num_warps=4,
         num_stages=3,
@@ -131,6 +146,156 @@ def kernel_gemm_packed_int4(
     tl.store(c_ptrs, acc, mask=c_mask)
 
 
+@triton.jit
+def kernel_gemm_packed_int4_static(
+    A_ptr,
+    B_ptr,
+    C_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_bk,
+    stride_bn,
+    stride_cm,
+    stride_cn,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    GROUP_SIZE_M: tl.constexpr,
+):
+    pid = tl.program_id(axis=0)
+    grid_m = (M + BLOCK_M - 1) // BLOCK_M
+    grid_n = (N + BLOCK_N - 1) // BLOCK_N
+
+    group_id = pid // grid_n
+    group_id = group_id * GROUP_SIZE_M + (pid % GROUP_SIZE_M)
+    pid_n = pid % grid_n
+    pid_m = group_id
+
+    if pid_m >= grid_m:
+        return
+
+    m_start = pid_m * BLOCK_M
+    n_start = pid_n * BLOCK_N
+
+    offs_m = m_start + tl.arange(0, BLOCK_M)
+    offs_k = tl.arange(0, BLOCK_K // 2)
+    offs_n = n_start + tl.arange(0, BLOCK_N)
+
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+
+    k_blocks = (K + BLOCK_K - 1) // BLOCK_K
+
+    for kb in range(k_blocks):
+        k_offset = kb * (BLOCK_K // 2)
+
+        a_row_mask = offs_m[:, None] < M
+        a_col_mask = (k_offset + offs_k[None, :]) < (K // 2)
+        a_mask = a_row_mask & a_col_mask
+
+        a_ptrs = A_ptr + (offs_m[:, None] * stride_am) + (
+            (k_offset + offs_k[None, :]) * stride_ak
+        )
+        a_packed = tl.load(a_ptrs, mask=a_mask, other=0).to(tl.uint8)
+
+        b_row_mask = (k_offset + offs_k[:, None]) < (K // 2)
+        b_col_mask = offs_n[None, :] < N
+        b_mask = b_row_mask & b_col_mask
+
+        b_ptrs = B_ptr + ((k_offset + offs_k[:, None]) * stride_bk) + (
+            offs_n[None, :] * stride_bn
+        )
+        b_packed = tl.load(b_ptrs, mask=b_mask, other=0).to(tl.uint8)
+
+        a_lo = a_packed & 0x0F
+        a_hi = (a_packed >> 4) & 0x0F
+        b_lo = b_packed & 0x0F
+        b_hi = (b_packed >> 4) & 0x0F
+
+        a_lo = tl.where(a_lo >= 8, a_lo - 16, a_lo).to(tl.float32)
+        a_hi = tl.where(a_hi >= 8, a_hi - 16, a_hi).to(tl.float32)
+        b_lo = tl.where(b_lo >= 8, b_lo - 16, b_lo).to(tl.float32)
+        b_hi = tl.where(b_hi >= 8, b_hi - 16, b_hi).to(tl.float32)
+
+        acc += tl.dot(a_lo, b_lo) + tl.dot(a_hi, b_hi)
+
+    c_row_mask = offs_m[:, None] < M
+    c_col_mask = offs_n[None, :] < N
+    c_mask = c_row_mask & c_col_mask
+
+    c_ptrs = C_ptr + (offs_m[:, None] * stride_cm) + (offs_n[None, :] * stride_cn)
+    tl.store(c_ptrs, acc, mask=c_mask)
+
+
+def get_best_config(
+    m: int,
+    n: int,
+    k: int,
+    a_dtype: str,
+    b_dtype: str,
+    c_dtype: str,
+):
+    return kernel_gemm_packed_int4.cache.get((m, n, k, a_dtype, b_dtype, c_dtype))
+
+
+def _bucket_m(m: int) -> str | None:
+    if m <= 1:
+        return "m1"
+    if m <= 4:
+        return "small"
+    if m <= 8:
+        return "medium"
+    return None
+
+
+def _shape_family(n: int, k: int) -> str:
+    if n > k:
+        return "ffn_up"
+    if n == k:
+        return "q_proj"
+    if n <= 1280:
+        return "kv_proj"
+    return "ffn_down"
+
+
+_STATIC_CONFIGS: dict[tuple[str, str], dict[str, int]] = {
+    ("m1", "kv_proj"): {
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "BLOCK_K": 128,
+        "GROUP_SIZE_M": 4,
+        "num_warps": 4,
+        "num_stages": 4,
+    },
+    ("m1", "q_proj"): {
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "BLOCK_K": 128,
+        "GROUP_SIZE_M": 4,
+        "num_warps": 4,
+        "num_stages": 4,
+    },
+    ("m1", "ffn_down"): {
+        "BLOCK_M": 8,
+        "BLOCK_N": 64,
+        "BLOCK_K": 128,
+        "GROUP_SIZE_M": 4,
+        "num_warps": 4,
+        "num_stages": 4,
+    },
+    ("m1", "ffn_up"): {
+        "BLOCK_M": 4,
+        "BLOCK_N": 64,
+        "BLOCK_K": 128,
+        "GROUP_SIZE_M": 2,
+        "num_warps": 4,
+        "num_stages": 4,
+    },
+}
+
+
 def triton_gemm_packed_int4(
     A_packed: torch.Tensor,
     B_packed: torch.Tensor,
@@ -141,6 +306,7 @@ def triton_gemm_packed_int4(
     GROUP_SIZE_M: int | None = None,
     num_warps: int | None = None,
     num_stages: int | None = None,
+    use_static_config: bool = True,
 ) -> torch.Tensor:
     """GEMM with packed signed INT4 (2 values per byte).
 
@@ -180,22 +346,45 @@ def triton_gemm_packed_int4(
         meta["num_warps"] = num_warps
     if num_stages is not None:
         meta["num_stages"] = num_stages
+    if use_static_config and not meta:
+        m_bucket = _bucket_m(M)
+        family = _shape_family(N, K)
+        static_meta = _STATIC_CONFIGS.get((m_bucket, family)) if m_bucket else None
+        if static_meta:
+            meta = dict(static_meta)
 
-    kernel_gemm_packed_int4[grid_size_fn](
-        A_packed,
-        B_packed,
-        C,
-        M,
-        N,
-        K,
-        stride_am,
-        stride_ak,
-        stride_bk,
-        stride_bn,
-        stride_cm,
-        stride_cn,
-        **meta,
-    )
+    if use_static_config and meta:
+        kernel_gemm_packed_int4_static[grid_size_fn](
+            A_packed,
+            B_packed,
+            C,
+            M,
+            N,
+            K,
+            stride_am,
+            stride_ak,
+            stride_bk,
+            stride_bn,
+            stride_cm,
+            stride_cn,
+            **meta,
+        )
+    else:
+        kernel_gemm_packed_int4[grid_size_fn](
+            A_packed,
+            B_packed,
+            C,
+            M,
+            N,
+            K,
+            stride_am,
+            stride_ak,
+            stride_bk,
+            stride_bn,
+            stride_cm,
+            stride_cn,
+            **meta,
+        )
 
     return C
 

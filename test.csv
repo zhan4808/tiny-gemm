@@ -1,0 +1,2 @@
+M,K,N,group_size,ref_ms,triton_ms,speedup,best_config
+1,1152,256,per_tensor,0.064576,0.048566,1.329651,"BLOCK_K=64,BLOCK_M=32,BLOCK_N=128,GROUP_SIZE_M=8,num_warps=8,num_stages=2"
