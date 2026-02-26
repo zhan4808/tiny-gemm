@@ -1,0 +1,12 @@
+\begin{abstract}
+Small-batch LLM decoding is dominated by narrow GEMMs that stress memory
+bandwidth and launch overhead rather than peak FLOPs. We present Tiny-GEMM, a
+packed INT4 GEMM kernel in Triton targeted at decode-heavy shapes, and a
+measurement-driven analysis of when quantization helps or hurts. We compare
+FP16, dequantized FP16, and INT4 fused kernels, attribute performance using
+hardware counters, and isolate dequantization overhead with microbenchmarks.
+Results on an A10G show substantial gains for wide FFN decode shapes while
+highlighting regimes where dequant overhead dominates. We provide a reproducible
+evaluation harness and a focused set of figures that connect kernel behavior to
+systems-level inference constraints.
+\end{abstract}

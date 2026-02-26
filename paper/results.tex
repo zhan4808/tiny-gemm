@@ -1,0 +1,142 @@
+\section{Results}
+
+\subsection{Story Figure}
+We summarize the core claim with a single panel that connects performance
+regimes, utilization shift, and dequantization cost.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{hero_figure.png}
+  \caption{INT4 helps when bandwidth dominates and dequant is amortized.}
+  \label{fig:hero}
+\end{figure}
+\FloatBarrier
+
+\subsection{Where Does INT4 Help?}
+We identify the regime where INT4 improves decode performance.
+Figure~\ref{fig:speedup-vs-n} shows speedup vs FP16 as $N$ increases (fixed
+$K=4096$). INT4 underperforms on narrow projections but provides strong gains
+for wide FFN layers. Figure~\ref{fig:family-latency} groups results by layer
+family, showing the same trend across M=1 and M=8.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{speedup_vs_n_k4096.png}
+  \caption{Speedup vs output width $N$ (decode shapes, $K=4096$).}
+  \label{fig:speedup-vs-n}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{family_latency_m1.png}
+  \caption{Latency by shape family (M=1).}
+  \label{fig:family-latency}
+\end{figure}
+\FloatBarrier
+
+\subsection{Prefill vs Decode}
+We compare prefill-like ($M \gg 1$) and decode-like ($M \le 8$) regimes using a
+fixed shape family grouping. INT4 benefits are stronger in decode for wide FFN
+layers but remain mixed for narrow projections.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{prefill_vs_decode_speedup.png}
+  \caption{Prefill vs decode speedup by family.}
+  \label{fig:prefill-decode}
+\end{figure}
+\FloatBarrier
+
+\subsection{Why Does INT4 Help (or Hurt)?}
+We isolate dequantization overhead and attribute bottleneck shifts. The
+dequantization microbenchmark (Figure~\ref{fig:dequant-breakdown}) shows that
+fixed INT4 overhead dominates narrow projections, explaining regressions on
+KV-like shapes. Hardware counters provide a complementary view: INT4 shifts
+utilization compared to FP16 (Figure~\ref{fig:util-compare}), while a roofline
+scatter illustrates the memory-bound regime (Figure~\ref{fig:roofline}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\linewidth]{peak_compute_utilization.png}
+  \caption{Peak compute utilization proxy (SM throughput) for FP16 vs INT4.}
+  \label{fig:peak-compute}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{dequant_breakdown.png}
+  \caption{Dequantization breakdown for representative decode shapes.}
+  \label{fig:dequant-breakdown}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{ncu_utilization_comparison.png}
+  \caption{Hardware utilization comparison (FP16 vs INT4).}
+  \label{fig:util-compare}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{roofline_scatter.png}
+  \caption{Estimated roofline scatter (arithmetic intensity vs TFLOPs).}
+  \label{fig:roofline}
+\end{figure}
+\FloatBarrier
+
+\subsection{A Regime Model for INT4 Decode GEMMs}
+We model total latency as:
+\begin{equation}
+T_{\text{total}} = T_{\text{launch}} + T_{\text{mem}}(W) + T_{\text{dequant}} + T_{\text{compute}}.
+\end{equation}
+Narrow projections are dominated by fixed $T_{\text{dequant}}$ and limited
+parallelism, while wide FFN layers are dominated by $T_{\text{mem}}$. INT4
+reduces $T_{\text{mem}}$, creating a transition boundary in arithmetic intensity
+space. Figure~\ref{fig:regime-boundary} visualizes this boundary.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{regime_boundary.png}
+  \caption{Regime boundary: speedup vs arithmetic intensity.}
+  \label{fig:regime-boundary}
+\end{figure}
+\FloatBarrier
+
+\subsection{When Does INT4 Help in Systems Terms?}
+We examine batch scaling and throughput to connect kernel behavior to decode
+latency constraints. Figure~\ref{fig:batch-scaling} shows latency vs batch size
+for a representative decode shape; Figure~\ref{fig:tps} reports tokens/sec.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{batch_scaling_k4096_n4096.png}
+  \caption{Batch scaling for decode ($K=N=4096$).}
+  \label{fig:batch-scaling}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{tokens_per_sec_k4096_n4096.png}
+  \caption{Decode throughput (tokens/sec) vs batch size.}
+  \label{fig:tps}
+\end{figure}
+\FloatBarrier
+
+\subsection{Regime Map and Kernel Composition}
+To summarize regimes, we include a decode heatmap (Figure~\ref{fig:heatmap}) and
+kernel time composition (Figure~\ref{fig:kernel-time}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{int4_speedup_heatmap_m1.png}
+  \caption{Decode regime map (M=1) across $K$ and $N$.}
+  \label{fig:heatmap}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{kernel_time_top_shapes.png}
+  \caption{Top shapes by CUDA time (Nsight Systems).}
+  \label{fig:kernel-time}
+\end{figure}
+\FloatBarrier

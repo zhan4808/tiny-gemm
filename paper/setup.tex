@@ -1,0 +1,22 @@
+\section{Experimental Setup}
+All experiments run on an NVIDIA A10G GPU. We focus on decode shapes derived
+from Llama-style models: Q/FFN projections with $K,N$ in $\{4096, 14336\}$ and
+KV projections with $N=1024$. Profiling uses Nsight Compute; wall-clock timings
+are reported from the benchmark harness (profilers replay kernels and inflate
+timings).
+
+\begin{table}[t]
+  \centering
+  \caption{Representative decode shapes (Llama-style).}
+  \label{tab:shapes}
+  \begin{tabular}{lccc}
+    \toprule
+    Layer & $M$ & $K$ & $N$ \\
+    \midrule
+    Q/K/V proj & 1--8 & 4096 & 4096 \\
+    KV proj & 1--8 & 4096 & 1024 \\
+    FFN up & 1--8 & 4096 & 14336 \\
+    FFN down & 1--8 & 14336 & 4096 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

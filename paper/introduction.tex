@@ -1,0 +1,17 @@
+\section{Introduction}
+LLM inference workloads differ sharply from training: decoding operates at batch
+sizes of 1--8 with skinny matrices and tight latency budgets. These shapes are
+often memory-bound, and naive quantization can underperform if dequantization
+overhead is not amortized. This work explores packed INT4 GEMM in Triton and
+provides a systems-oriented evaluation emphasizing utilization, bottleneck
+regimes, and deployment-relevant shapes.
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item A decode-focused INT4 GEMM kernel with static configuration selection
+        and measurement-driven tuning.
+  \item A regime analysis of INT4 decode GEMMs that identifies when quantization
+        helps or hurts, supported by FP16 and dequantized FP16 baselines.
+  \item A causal attribution methodology combining hardware counters and
+        microbenchmarks to explain performance transitions.
+\end{itemize}

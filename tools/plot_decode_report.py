@@ -22,6 +22,22 @@ DEFAULT_SHAPES = [
 FAMILY_ORDER = ["q_proj", "kv_proj", "ffn_up", "ffn_down"]
 
 
+def _annotate_bars(ax, bars, fmt="{:.2f}", y_offset=0.02):
+    ymax = ax.get_ylim()[1]
+    for bar in bars:
+        height = bar.get_height()
+        if not np.isfinite(height):
+            continue
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + ymax * y_offset,
+            fmt.format(height),
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+
 def shape_family(n: int, k: int) -> str:
     if n > k:
         return "ffn_up"
@@ -168,14 +184,20 @@ def plot_prefill_vs_decode(rows, decode_m_max, prefill_m_min, out_dir: Path) -> 
     x = np.arange(len(FAMILY_ORDER))
     width = 0.35
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(x - width / 2, decode_median, width, label="Decode", color="#54A24B")
-    ax.bar(x + width / 2, prefill_median, width, label="Prefill", color="#4C78A8")
+    decode_bars = ax.bar(
+        x - width / 2, decode_median, width, label="Decode", color="#54A24B"
+    )
+    prefill_bars = ax.bar(
+        x + width / 2, prefill_median, width, label="Prefill", color="#4C78A8"
+    )
     ax.set_xticks(x)
     ax.set_xticklabels(FAMILY_ORDER)
     ax.set_ylabel("Speedup vs FP16 (median)")
     ax.set_title("Prefill vs Decode Speedup by Family")
     ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.legend()
+    _annotate_bars(ax, decode_bars, fmt="{:.2f}x")
+    _annotate_bars(ax, prefill_bars, fmt="{:.2f}x")
     fig.tight_layout()
     fig.savefig(out_dir / "prefill_vs_decode_speedup.png", dpi=200)
     plt.close(fig)
@@ -189,17 +211,19 @@ def plot_speedup_vs_n(rows, k_fixed, out_dir: Path) -> None:
         by_m[row["M"]].append(row)
 
     fig, ax = plt.subplots(figsize=(8, 4))
+    colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(by_m)))
     for m, m_rows in sorted(by_m.items()):
         m_rows = sorted(m_rows, key=lambda r: r["N"])
         n_vals = [r["N"] for r in m_rows]
         speedups = [r["speedup_fp16"] for r in m_rows]
-        ax.plot(n_vals, speedups, marker="o", label=f"M={m}")
+        color = colors[list(sorted(by_m.keys())).index(m)]
+        ax.plot(n_vals, speedups, marker="o", label=f"M={m}", color=color)
 
     ax.set_xlabel("N")
     ax.set_ylabel("Speedup vs FP16")
     ax.set_title(f"Speedup vs Output Width (K={k_fixed})")
     ax.grid(axis="y", linestyle="--", alpha=0.4)
-    ax.legend()
+    ax.legend(ncol=2, fontsize=8)
     fig.tight_layout()
     fig.savefig(out_dir / f"speedup_vs_n_k{k_fixed}.png", dpi=200)
     plt.close(fig)
@@ -221,6 +245,10 @@ def plot_batch_scaling(rows, k_fixed, n_fixed, out_dir: Path) -> None:
     ax.set_ylabel("Latency (ms)")
     ax.set_title(f"Batch Scaling (K={k_fixed}, N={n_fixed})")
     ax.grid(axis="y", linestyle="--", alpha=0.4)
+    if m_vals[-1] / max(m_vals[0], 1) >= 32:
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(m_vals)
+        ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
     ax.legend()
     fig.tight_layout()
     fig.savefig(out_dir / f"batch_scaling_k{k_fixed}_n{n_fixed}.png", dpi=200)
@@ -246,6 +274,10 @@ def plot_tokens_per_sec(rows, k_fixed, n_fixed, out_dir: Path) -> None:
     ax.set_ylabel("Tokens/sec (batch / latency)")
     ax.set_title(f"Decode Throughput (K={k_fixed}, N={n_fixed})")
     ax.grid(axis="y", linestyle="--", alpha=0.4)
+    if m_vals[-1] / max(m_vals[0], 1) >= 32:
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(m_vals)
+        ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
     ax.legend()
     fig.tight_layout()
     fig.savefig(out_dir / f"tokens_per_sec_k{k_fixed}_n{n_fixed}.png", dpi=200)

@@ -98,8 +98,8 @@ def plot_comparison(fp16_csv: Path, int4_csv: Path, out_path: Path, kernel_fp16,
     x = np.arange(len(labels))
     width = 0.35
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(x - width / 2, fp16_vals, width, label="FP16", color="#4C78A8")
-    ax.bar(x + width / 2, int4_vals, width, label="INT4", color="#54A24B")
+    fp16_bars = ax.bar(x - width / 2, fp16_vals, width, label="FP16", color="#4C78A8")
+    int4_bars = ax.bar(x + width / 2, int4_vals, width, label="INT4", color="#54A24B")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=15, ha="right")
     ax.set_ylabel("Percent / Ratio")
@@ -107,6 +107,18 @@ def plot_comparison(fp16_csv: Path, int4_csv: Path, out_path: Path, kernel_fp16,
     ax.set_ylim(0, 100)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.legend()
+    for bars in (fp16_bars, int4_bars):
+        for bar in bars:
+            height = bar.get_height()
+            if np.isfinite(height):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    height + 1.5,
+                    f"{height:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                )
     fig.tight_layout()
     fig.savefig(out_path, dpi=200)
     plt.close(fig)

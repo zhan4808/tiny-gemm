@@ -74,7 +74,10 @@ def plot_speedup_heatmap_m1(rows, out_path: Path) -> None:
         grid[k_index[row["K"]], n_index[row["N"]]] = row["speedup"]
 
     fig, ax = plt.subplots(figsize=(12, 7))
-    im = ax.imshow(grid, aspect="auto", cmap="viridis")
+    masked = np.ma.masked_invalid(grid)
+    cmap = plt.cm.viridis.copy()
+    cmap.set_bad(color="#f2f2f2")
+    im = ax.imshow(masked, aspect="auto", cmap=cmap)
     ax.set_xticks(range(len(n_vals)))
     ax.set_xticklabels(n_vals, rotation=45, ha="right")
     ax.set_yticks(range(len(k_vals)))
@@ -82,6 +85,10 @@ def plot_speedup_heatmap_m1(rows, out_path: Path) -> None:
     ax.set_xlabel("N")
     ax.set_ylabel("K")
     ax.set_title("M=1 Speedup Heatmap (ref / triton)")
+    ax.set_xticks(np.arange(-0.5, len(n_vals), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(k_vals), 1), minor=True)
+    ax.grid(which="minor", color="white", linestyle="-", linewidth=0.5, alpha=0.6)
+    ax.tick_params(which="minor", bottom=False, left=False)
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label("Speedup")
     fig.tight_layout()

@@ -36,9 +36,15 @@ def plot_breakdown(rows, out_path: Path) -> None:
     x = np.arange(len(labels))
     width = 0.35
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(x - width / 2, fp16, width, label="FP16", color="#4C78A8")
-    ax.bar(x + width / 2, dequant_share, width, label="INT4 dequant (est)", color="#F58518")
-    ax.bar(
+    fp16_bars = ax.bar(x - width / 2, fp16, width, label="FP16", color="#4C78A8")
+    dequant_bars = ax.bar(
+        x + width / 2,
+        dequant_share,
+        width,
+        label="INT4 dequant (est)",
+        color="#F58518",
+    )
+    other_bars = ax.bar(
         x + width / 2,
         other_share,
         width,
@@ -52,6 +58,38 @@ def plot_breakdown(rows, out_path: Path) -> None:
     ax.set_title("INT4 Dequantization Cost (Estimated)")
     ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.legend()
+    for bar in fp16_bars:
+        height = bar.get_height()
+        if np.isfinite(height):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height + 0.02 * max(fp16 + int4),
+                f"{height:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+    for bar, total in zip(other_bars, int4):
+        if np.isfinite(total):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                total + 0.02 * max(fp16 + int4),
+                f"{total:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+    for bar, dq in zip(dequant_bars, dequant_share):
+        if np.isfinite(dq):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                dq / 2,
+                f"{dq:.2f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color="black",
+            )
     fig.tight_layout()
     fig.savefig(out_path, dpi=200)
     plt.close(fig)

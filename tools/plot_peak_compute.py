@@ -70,11 +70,22 @@ def plot_peak_compute(fp16_csv: Path, int4_csv: Path, out_path: Path, fp16_kerne
     labels = ["FP16", "INT4"]
     values = [fp16_val, int4_val]
     fig, ax = plt.subplots(figsize=(5.5, 4))
-    ax.bar(labels, values, color=["#4C78A8", "#54A24B"])
+    bars = ax.bar(labels, values, color=["#4C78A8", "#54A24B"])
     ax.set_ylabel("% Peak SM Throughput")
     ax.set_title("Peak Compute Utilization (Proxy)")
     ax.set_ylim(0, 100)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
+    for bar in bars:
+        height = bar.get_height()
+        if np.isfinite(height):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height + 1.5,
+                f"{height:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
     fig.tight_layout()
     fig.savefig(out_path, dpi=200)
     plt.close(fig)

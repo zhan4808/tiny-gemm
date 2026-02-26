@@ -1,0 +1,11 @@
+\section{Method}
+We implement packed INT4 GEMM in Triton with per-tensor quantization and
+bit-packed weight tensors. The kernel unpacks INT4 values into FP32 accumulators
+inside the kernel and uses static configurations keyed by shape family and batch
+bucket. We evaluate three baselines:
+
+\begin{itemize}
+  \item \textbf{FP16}: \texttt{torch.matmul} as the standard deployment baseline.
+  \item \textbf{Dequantized FP16}: INT4 quantize $\rightarrow$ dequant $\rightarrow$ FP16 GEMM.
+  \item \textbf{INT4 fused}: packed INT4 GEMM kernel (Tiny-GEMM).
+\end{itemize}
