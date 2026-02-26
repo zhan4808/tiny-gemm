@@ -1,251 +1,94 @@
-# Tiny-GEMM: Optimized Triton GEMM for Small Batch Transformer Inference
+# Tiny-GEMM: INT4 Triton GEMM for Decode-Heavy LLM Inference
 
-A collection of optimized matrix multiplication kernels using Triton for efficient transformer model inference on resource-constrained hardware.
+Tiny-GEMM is a research-style exploration of packed INT4 GEMM kernels targeting
+the decode phase of LLM inference (small batch, skinny matrices). The goal is
+not peak FLOPs, but **latency-critical utilization** on cost-effective GPUs
+where launch overhead and memory traffic dominate.
 
-## Features
+## Summary
 
-- Fused attention mechanism optimized for small batch sizes and low-latency inference
-- Fused feed-forward network with optimized memory access patterns
-- Support for typical transformer operations (GELU, causal masking, etc.)
-- Benchmarking utilities to compare with PyTorch
-- Custom quantization framework for INT4 quantization
-- Profiling setup for identifying performance bottlenecks
+**Problem:** Decode GEMMs are small, bandwidth-bound, and poorly utilize GPU
+hardware. Naive quantization can be slower if dequant overhead dominates.
 
-## Implementation Details
+**Approach:** Implement a packed INT4 GEMM in Triton with static configs for
+decode-heavy shapes, then analyze performance using counters and microbenchmarks
+to separate **quantization gains** from **kernel effects**.
 
-This project implements two key transformer components as fused operations in Triton:
+**Key Findings:**
+- INT4 helps for wide FFN decode shapes (large N) where memory traffic dominates.
+- INT4 can be slower for narrow projections (e.g., KV) when dequant overhead is
+  not amortized.
+- Hardware counters confirm the bottleneck shift across regimes.
 
-1. **Fused Multi-Head Attention**: Computes `Softmax(Q·K^T/sqrt(d_k))·V` in a single kernel, with optimizations:
-   - Efficient tiling for small batch operation
-   - Memory locality optimizations for Q, K, V matrices
-   - Causal masking for autoregressive models
-   - Optional attention dropout
+## Figures
 
-2. **Fused Feed-Forward Network**: Computes `Act(X·W1 + B1)·W2 + B2` in a single kernel, with:
-   - Activation functions (GELU, ReLU, SiLU)
-   - Weight-stationary design to minimize memory transfer
-   - Blocking strategy for efficient matrix multiplication
-   - Support for standard transformer hidden dimension patterns
+**(A) Speedup vs N**  
+Shows when INT4 wins as output width grows.
 
-## Optimizations
+![Speedup vs N](figures/speedup_vs_n_k4096.png)
 
-The implementation includes several key optimizations for small-batch transformer inference:
+**(B) % Peak Compute (proxy)**  
+SM throughput as a proxy for peak compute utilization (FP16 vs INT4).
 
-- **Memory Hierarchy Utilization**: Efficient use of L1/L2 cache and shared memory
-- **Tiling Strategies**: Blocking techniques to maximize data reuse
-- **Fused Operations**: Combined multiple operations to reduce memory traffic
-- **Reduced Precision Support**: FP16 computation for improved throughput
-- **Cache-Aware Layout**: Memory access patterns designed for coalesced memory access
+![Peak Compute Utilization](figures/peak_compute_utilization.png)
 
-## Custom Quantization Framework
+**(C) Dequant Breakdown**  
+Quantization overhead dominates narrow shapes; amortized for wide FFN.
 
-- Implemented custom quantization and dequantization functions for INT4 quantization.
-- Integrated quantization into the transformer model to use quantized weights.
-- Demonstrated performance improvements with quantized models.
+![Dequant Breakdown](figures/dequant_breakdown.png)
 
-## Profiling and Bottleneck Identification
+## Evaluation Setup
 
-- Integrated PyTorch profiler to identify performance bottlenecks.
-- Set up TensorBoard for visualizing profiling data.
-- Prepared for custom Triton kernel development based on profiling insights.
+- GPU: NVIDIA A10G
+- Baselines:
+  - FP16 `torch.matmul`
+  - Dequantized FP16 (quantize → dequant → FP16 matmul)
+  - INT4 packed Triton kernel
+- Decode shapes focus: `M ∈ {1,2,4,8}`, `K/N` from Llama-style hidden sizes.
 
-## Usage
+Note: Nsight profiling replays kernels and **inflates wall-clock timings**. Use
+profilers for counters/traces, and `benchmark_gemm.py` for latency numbers.
 
-### Fused Attention
-
-```python
-from triton_fused_transformer import fused_attention
-
-# [B, H, N, D] format tensors
-# batch_size = 1, num_heads = 8, seq_len = 512, head_dim = 64
-q = torch.randn(1, 8, 512, 64, device='cuda', dtype=torch.float16)
-k = torch.randn(1, 8, 512, 64, device='cuda', dtype=torch.float16)
-v = torch.randn(1, 8, 512, 64, device='cuda', dtype=torch.float16)
-
-# Compute attention with causal masking
-output = fused_attention(q, k, v, causal=True)
-```
-
-### Fused FFN
-
-```python
-from triton_fused_transformer import fused_ffn
-
-# Input: [B, N, D]
-# batch_size = 1, seq_len = 512, d_model = 512
-x = torch.randn(1, 512, 512, device='cuda', dtype=torch.float16)
-w1 = torch.randn(512, 2048, device='cuda', dtype=torch.float16)  # Expand to 4x hidden dimension
-b1 = torch.randn(2048, device='cuda', dtype=torch.float16)
-w2 = torch.randn(2048, 512, device='cuda', dtype=torch.float16)  # Project back to model dimension
-b2 = torch.randn(512, device='cuda', dtype=torch.float16)
-
-# Compute FFN with GELU activation
-output = fused_ffn(x, w1, b1, w2, b2, activation="gelu")
-```
-
-## Benchmarking
-
-Run benchmarks to compare performance against PyTorch:
+## Reproduce Key Plots
 
 ```bash
-# Benchmark across sequence lengths
-python benchmark_fused_transformer.py --mode=seq_length --seq_lengths 128 256 512 1024 2048
+# Decode benchmark sweep (FP16 + dequant + INT4)
+PYTHONPATH=. .venv/bin/python benchmark_gemm.py \
+  --shape_list "1,4096,4096;1,4096,1024;1,4096,14336;1,14336,4096;8,4096,4096;8,4096,1024;8,4096,14336;8,14336,4096" \
+  --csv results_a10g_decode.csv
 
-# Benchmark across batch sizes
-python benchmark_fused_transformer.py --mode=batch_size --batch_sizes 1 2 4 8 16
+# Plot A: Speedup vs N (and other decode figures)
+.venv/bin/python tools/plot_decode_report.py \
+  --csv results_a10g_decode.csv --out_dir figures
+
+# Dequant breakdown (Plot C)
+PYTHONPATH=. .venv/bin/python tools/profile_dequant_breakdown.py \
+  --shape_list "1,4096,1024;1,4096,14336" --csv dequant_breakdown.csv
+.venv/bin/python tools/plot_dequant_breakdown.py \
+  --csv dequant_breakdown.csv --out figures/dequant_breakdown.png
+
+# Nsight Compute counters for peak compute (Plot B)
+sudo /opt/nvidia/nsight-compute/2025.4.1/ncu \
+  --metrics sm__throughput.avg.pct_of_peak_sustained_elapsed \
+  --csv --log-file ncu_fp16_metrics.csv \
+  .venv/bin/python tools/profile_fp16_matmul.py --m 1 --k 4096 --n 14336
+
+sudo /opt/nvidia/nsight-compute/2025.4.1/ncu \
+  --kernel-name kernel_gemm_packed_int4_static \
+  --metrics sm__throughput.avg.pct_of_peak_sustained_elapsed \
+  --csv --log-file ncu_int4_metrics.csv \
+  .venv/bin/python benchmark_gemm.py --shape_list "1,4096,14336" --rep 3 --warmup 2 --skip_correctness
+
+.venv/bin/python tools/plot_peak_compute.py \
+  --fp16_csv ncu_fp16_metrics.csv --int4_csv ncu_int4_metrics.csv \
+  --out figures/peak_compute_utilization.png
 ```
 
-### INT4 GEMM Benchmarks (Small-Model Shapes)
+## Repository Structure
 
-Generate the INT4 GEMM sweep across the 2025–2026 small-model matrix shapes:
-
-```bash
-python3 benchmark_gemm.py --suite smallmodel --m_values 1,2,4,8 --csv results_m1248.csv --disable_static
-```
-
-Produce summary figures from the CSV:
-
-```bash
-python3 tools/plot_benchmarks.py --csv results_m1248.csv --out_dir figures
-```
-
-Figures (A10G, per-tensor INT4, ref = dequantized FP16 matmul):
-
-![INT4 Speedup by Shape Family](figures/int4_speedup_by_family.png)
-![INT4 Speedup Heatmap M=1](figures/int4_speedup_heatmap_m1.png)
-![INT4 Speedup by M](figures/int4_speedup_by_m.png)
-
-Figure notes:
-- **Speedup by Shape Family**: distribution of speedups grouped into KV/Q/FFN families across M values.
-- **Heatmap M=1**: per-shape speedup for the M=1 decode case (rows=K, cols=N).
-- **Speedup by M**: median speedup with interquartile range across M=1/2/4/8.
-
-Profiling summary tables:
-- `figures/family_summary_nsys.md` — per-family median CUDA time (Nsight Systems).
-- `figures/kernel_time_by_shape_nsys.md` — per-shape CUDA time for `kernel_gemm_packed_int4` (Nsight Systems).
-- `figures/top_kernels_by_cuda_time.md` — top shapes by CUDA time (Nsight Systems).
-
-Table figures:
-
-![Per-Family Summary (Nsight)](figures/family_summary_nsys_table.png)
-![Top Kernels by CUDA Time (Nsight)](figures/top_kernels_by_cuda_time.png)
-
-## Benchmark Results
-
-The current results are summarized in the INT4 GEMM figures above. Those plots are generated from the `results_m1248.csv` sweep and reflect the latest small-model shape coverage on A10G.
-
-## Current Focus
-
-- Triton kernel development and tuning for decode-heavy INT4 GEMM shapes.
-- INT4 packed GEMM exploration (weight-only), using the small-model shape suite.
-- Profiling (torch.profiler + Nsight) to drive kernel changes and quantify wins.
-- `torch.library` op registration for integration is supported; `torch.compile` backend experiments are planned after kernel stability.
-
-## Roadmap
-
-### Phase 1 — Kernel & Benchmark Core (now)
-- Expand/validate INT4 GEMM configs across M ∈ {1,2,4,8}.
-- Lock static configs per shape family from CSV sweeps.
-- Track regressions with CSV + figures.
-
-### Phase 2 — Profiling & Bottleneck Attribution
-- Add a profiling harness with `torch.profiler` for GEMM sweeps.
-- Capture Nsight Systems timelines for kernel launch/latency analysis.
-- Use profiler results to prune or add autotune configs.
-
-### Phase 3 — Integration & Backend Experiments
-- Keep `torch.library` ops stable for integration points.
-- Explore `torch.compile`/Dynamo backend pathways after kernel stability.
-
-## Profiling (Quick Start)
-
-### torch.profiler
-
-```bash
-python3 - <<'EOF'
-import torch
-from torch.profiler import profile, ProfilerActivity
-from tiny_gemm.quantization.packed_int4 import pack_int4_signed, quantize_per_tensor_int4
-from triton_gemm import triton_gemm_packed_int4
-
-M, K, N = 1, 3072, 3072
-A = torch.randn((M, K), device="cuda", dtype=torch.float16)
-B = torch.randn((K, N), device="cuda", dtype=torch.float16)
-A_q, _ = quantize_per_tensor_int4(A)
-B_q, _ = quantize_per_tensor_int4(B)
-A_p = pack_int4_signed(A_q, axis=1)
-B_p = pack_int4_signed(B_q, axis=0)
-
-with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-    triton_gemm_packed_int4(A_p, B_p, K)
-
-print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-EOF
-```
-
-Or run the scripted harness:
-
-```bash
-python3 tools/profile_gemm.py --m 1 --k 3072 --n 3072 --out_dir profiles
-```
-
-### Nsight Systems (optional)
-
-```bash
-nsys profile -o nsys_int4_gemm \
-  python3 benchmark_gemm.py --suite smallmodel --m_values 1 --max_shapes 8
-```
-
-## torch.compile Experiments
-
-```bash
-python3 tools/compile_bench.py --mode attention --backend inductor
-python3 tools/compile_bench.py --mode ffn --backend inductor
-```
-
-Results (A10G, batch=1, seq=128):
-
-| Mode | Eager (ms) | Compile (ms) | Speedup |
-|---|---:|---:|---:|
-| attention | 0.080 | 0.168 | 0.48x |
-| ffn | 2.131 | 2.137 | 1.00x |
-
-## Requirements
-
-- PyTorch >= 1.13
-- Triton >= 2.0
-- CUDA compatible GPU
-- numpy
-- matplotlib (for benchmarking visualization)
-
-## Project Structure
-
-- `triton_fused_transformer.py`: Implementation of fused transformer kernels
 - `triton_gemm.py`: Packed INT4 GEMM kernel (Triton)
-- `benchmark_fused_transformer.py`: Benchmarking utilities
-- `benchmark_gemm.py`: Packed INT4 GEMM benchmark
-- `cpu_transformer_inference.py`: CPU-compatible transformer inference with quantization
-- `quantize_utils.py`: Custom quantization utilities
-- `tiny_gemm/ops.py`: PyTorch dispatcher registration for fused ops
-- `tiny_gemm/quantization/packed_int4.py`: True packed INT4 utilities
-
-## Torch Op Registration
-
-This project registers fused attention and FFN as custom PyTorch ops using
-`torch.library` so they can be wired into higher-level compilation stacks.
-
-```python
-import tiny_gemm.ops  # registers ops
-out = torch.ops.tiny_gemm.fused_attention(q, k, v, True, 0.0)
-```
-
-## GPU Container (NVIDIA CUDA)
-
-See `docker/README.md` for a reproducible CUDA environment that works on cloud GPUs.
-
-## Future Work
-
-- Fine-tuned custom Triton kernel development based on profiling insights
-- Support for more activation functions
-- Flash Attention 2 style optimizations
-- Additional transformer components (layer norm, residual blocks)
+- `benchmark_gemm.py`: FP16/dequant/INT4 benchmark harness
+- `tools/plot_decode_report.py`: Speedup vs N + decode plots
+- `tools/profile_dequant_breakdown.py`: Dequant microbenchmark
+- `tools/plot_dequant_breakdown.py`: Dequant breakdown plot
+- `tools/plot_peak_compute.py`: Peak compute utilization plot
