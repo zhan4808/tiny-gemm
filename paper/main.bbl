@@ -1,0 +1,42 @@
+\begin{thebibliography}{1}
+
+\bibitem{flashattention2}
+Tri Dao et~al.
+\newblock Flashattention-2: Faster attention with better parallelism and work
+  partitioning.
+\newblock {\em arXiv preprint arXiv:2307.08691}, 2023.
+
+\bibitem{gptq}
+Elias Frantar et~al.
+\newblock Gptq: Accurate post-training quantization for generative pre-trained
+  transformers.
+\newblock {\em arXiv preprint arXiv:2210.17323}, 2022.
+
+\bibitem{awq}
+Yihong Lin et~al.
+\newblock Awq: Activation-aware weight quantization for llm compression and
+  acceleration.
+\newblock {\em arXiv preprint arXiv:2306.00978}, 2023.
+
+\bibitem{cublaslt}
+NVIDIA.
+\newblock cublaslt documentation.
+\newblock \url{https://docs.nvidia.com/cuda/cublas/index.html#cublasLt}, 2023.
+
+\bibitem{cutlass}
+NVIDIA.
+\newblock Cutlass: Cuda templates for linear algebra subroutines.
+\newblock \url{https://github.com/NVIDIA/cutlass}, 2023.
+
+\bibitem{tensorrtllm}
+NVIDIA.
+\newblock Tensorrt-llm.
+\newblock \url{https://github.com/NVIDIA/TensorRT-LLM}, 2023.
+
+\bibitem{smoothquant}
+Wei Xiao et~al.
+\newblock Smoothquant: Accurate and efficient post-training quantization for
+  large language models.
+\newblock {\em arXiv preprint arXiv:2211.10438}, 2022.
+
+\end{thebibliography}

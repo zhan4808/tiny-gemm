@@ -6,10 +6,13 @@ regimes, utilization shift, and dequantization cost.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{hero_figure.png}
+  \includegraphics[width=0.92\linewidth]{hero_figure.png}
   \caption{INT4 helps when bandwidth dominates and dequant is amortized.}
   \label{fig:hero}
 \end{figure}
+\FloatBarrier
+
+\input{summary_table}
 \FloatBarrier
 
 \subsection{Where Does INT4 Help?}
@@ -54,6 +57,8 @@ fixed INT4 overhead dominates narrow projections, explaining regressions on
 KV-like shapes. Hardware counters provide a complementary view: INT4 shifts
 utilization compared to FP16 (Figure~\ref{fig:util-compare}), while a roofline
 scatter illustrates the memory-bound regime (Figure~\ref{fig:roofline}).
+On the A10G, FP16 reaches \~76\% peak DRAM throughput while INT4 reaches
+\~27\%, consistent with a shift from bandwidth-dominated FP16 to a mixed regime.
 
 \begin{figure}[t]
   \centering
@@ -93,6 +98,17 @@ Narrow projections are dominated by fixed $T_{\text{dequant}}$ and limited
 parallelism, while wide FFN layers are dominated by $T_{\text{mem}}$. INT4
 reduces $T_{\text{mem}}$, creating a transition boundary in arithmetic intensity
 space. Figure~\ref{fig:regime-boundary} visualizes this boundary.
+In our sweep, the transition occurs near $\alpha \approx 8$ FLOPs/byte.
+
+\begin{center}
+\fbox{\parbox{0.95\linewidth}{
+\textbf{INT4 Decision Rule.} INT4 improves decode latency when the memory savings
+from FP16 $\rightarrow$ INT4 exceed dequantization cost:
+$T_{\text{mem}}^{\text{FP16}} - T_{\text{mem}}^{\text{INT4}} > T_{\text{dequant}}$.
+Equivalently, INT4 helps when arithmetic intensity exceeds a threshold $\alpha$
+for the target shape family.
+}}
+\end{center}
 
 \begin{figure}[t]
   \centering

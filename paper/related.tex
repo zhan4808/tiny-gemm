@@ -1,9 +1,12 @@
 \section{Related Work}
-Quantization for inference has been explored extensively in SmoothQuant, GPTQ,
-and AWQ, among others, focusing on accuracy-preserving weight-only and
-activation-aware techniques. Systems efforts such as FlashInfer and TensorRT-LLM
-emphasize kernel specialization and end-to-end inference throughput. CUTLASS and
-cuBLASLt provide highly optimized GEMM kernels that serve as deployment
-baselines. Tiny-GEMM complements these lines of work by focusing on the decode
-regime and providing a measurement-based model of when weight-only INT4 improves
-latency.
+Quantization for inference has been explored extensively in SmoothQuant,
+GPTQ, and AWQ, among others, focusing on accuracy-preserving weight-only and
+activation-aware techniques~\cite{smoothquant,gptq,awq}. Systems efforts such as
+FlashAttention-2 and TensorRT-LLM emphasize kernel specialization and end-to-end
+inference throughput~\cite{flashattention2,tensorrtllm}. CUTLASS and cuBLASLt
+provide highly optimized GEMM kernels that serve as deployment
+baselines~\cite{cutlass,cublaslt}. Tiny-GEMM complements these lines of work by
+focusing on the decode regime and providing a measurement-based model of when
+weight-only INT4 improves latency. In this sense, Tiny-GEMM bridges quantization
+research (accuracy and compression) with kernel-level inference optimization by
+isolating regime transitions under decode-specific constraints.

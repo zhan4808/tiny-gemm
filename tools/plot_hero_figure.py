@@ -9,10 +9,10 @@ def plot_hero(fig_a: Path, fig_b: Path, fig_c: Path, out_path: Path) -> None:
     imgs = [mpimg.imread(p) for p in (fig_a, fig_b, fig_c)]
     titles = ["(A) Speedup vs N", "(B) Utilization Shift", "(C) Dequant Breakdown"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    fig, axes = plt.subplots(3, 1, figsize=(6, 10))
     for ax, img, title in zip(axes, imgs, titles):
         ax.imshow(img)
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title, fontsize=11)
         ax.axis("off")
 
     fig.tight_layout()

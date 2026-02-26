@@ -9,3 +9,14 @@ bucket. We evaluate three baselines:
   \item \textbf{Dequantized FP16}: INT4 quantize $\rightarrow$ dequant $\rightarrow$ FP16 GEMM.
   \item \textbf{INT4 fused}: packed INT4 GEMM kernel (Tiny-GEMM).
 \end{itemize}
+
+The current kernel performs dot products in FP32 and does not yet leverage
+INT4 tensor core MMA instructions; exploiting INT4 MMA is future work.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{architecture_diagram.png}
+  \caption{Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared
+  memory, accumulated in FP32, and written to output.}
+  \label{fig:arch}
+\end{figure}

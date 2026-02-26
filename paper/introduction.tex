@@ -6,6 +6,13 @@ overhead is not amortized. This work explores packed INT4 GEMM in Triton and
 provides a systems-oriented evaluation emphasizing utilization, bottleneck
 regimes, and deployment-relevant shapes.
 
+We argue that decode inference occupies a distinct optimization regime: launch
+overhead and memory traffic dominate, so quantization benefits depend on
+amortizing dequantization cost rather than peak compute.
+
+Across representative decode shapes, Tiny-GEMM achieves up to 3.7$\times$
+speedup over FP16 on wide FFN projections (M=1, K=4096, N=14336).
+
 \paragraph{Contributions.}
 \begin{itemize}
   \item A decode-focused INT4 GEMM kernel with static configuration selection
