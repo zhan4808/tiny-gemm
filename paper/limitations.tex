@@ -3,4 +3,6 @@ This study targets a single GPU and a fixed set of decode shapes. The kernel is
 not yet optimized for all regimes (e.g., split-K for $M=1$), and the INT4 kernel
 does not currently exploit tensor core INT4 MMA pipelines. Future work should
 extend to additional hardware (L4/A100), incorporate split-K or persistent
-kernel strategies, and explore INT8/FP8 comparisons.
+kernel strategies, and explore INT8/FP8 comparisons. We also do not evaluate
+end-to-end model accuracy under quantization, which is orthogonal to the kernel
+performance focus of this work.

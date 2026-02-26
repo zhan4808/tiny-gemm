@@ -2,42 +2,56 @@
 \providecommand\hyper@newdestlabel[2]{}
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
-\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Contributions.}{1}{section*.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared memory, accumulated in FP32, and written to output.}}{1}{figure.7}\protected@file@percent }
-\newlabel{fig:arch}{{1}{1}{Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared memory, accumulated in FP32, and written to output}{figure.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {2}Background and Motivation}{1}{section.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}Method}{1}{section.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}Experimental Setup}{1}{section.8}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Representative decode shapes (Llama-style).}}{2}{table.10}\protected@file@percent }
-\newlabel{tab:shapes}{{1}{2}{Representative decode shapes (Llama-style)}{table.10}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Results}{2}{section.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Story Figure}{2}{subsection.12}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces INT4 helps when bandwidth dominates and dequant is amortized.}}{2}{figure.14}\protected@file@percent }
-\newlabel{fig:hero}{{2}{2}{INT4 helps when bandwidth dominates and dequant is amortized}{figure.14}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Summary of key decode shapes (M=1).}}{3}{table.16}\protected@file@percent }
-\newlabel{tab:summary}{{2}{3}{Summary of key decode shapes (M=1)}{table.16}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Where Does INT4 Help?}{3}{subsection.17}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Speedup vs output width $N$ (decode shapes, $K=4096$).}}{3}{figure.19}\protected@file@percent }
-\newlabel{fig:speedup-vs-n}{{3}{3}{Speedup vs output width $N$ (decode shapes, $K=4096$)}{figure.19}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Latency by shape family (M=1).}}{3}{figure.21}\protected@file@percent }
-\newlabel{fig:family-latency}{{4}{3}{Latency by shape family (M=1)}{figure.21}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Prefill vs Decode}{3}{subsection.22}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Prefill vs decode speedup by family.}}{4}{figure.24}\protected@file@percent }
-\newlabel{fig:prefill-decode}{{5}{4}{Prefill vs decode speedup by family}{figure.24}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Why Does INT4 Help (or Hurt)?}{4}{subsection.25}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Peak compute utilization proxy (SM throughput) for FP16 vs INT4.}}{4}{figure.27}\protected@file@percent }
-\newlabel{fig:peak-compute}{{6}{4}{Peak compute utilization proxy (SM throughput) for FP16 vs INT4}{figure.27}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Dequantization breakdown for representative decode shapes.}}{4}{figure.29}\protected@file@percent }
-\newlabel{fig:dequant-breakdown}{{7}{4}{Dequantization breakdown for representative decode shapes}{figure.29}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Hardware utilization comparison (FP16 vs INT4).}}{5}{figure.31}\protected@file@percent }
-\newlabel{fig:util-compare}{{8}{5}{Hardware utilization comparison (FP16 vs INT4)}{figure.31}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Estimated roofline scatter (arithmetic intensity vs TFLOPs).}}{5}{figure.33}\protected@file@percent }
-\newlabel{fig:roofline}{{9}{5}{Estimated roofline scatter (arithmetic intensity vs TFLOPs)}{figure.33}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}A Regime Model for INT4 Decode GEMMs}{5}{subsection.34}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Regime boundary: speedup vs arithmetic intensity.}}{5}{figure.37}\protected@file@percent }
-\newlabel{fig:regime-boundary}{{10}{5}{Regime boundary: speedup vs arithmetic intensity}{figure.37}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6}When Does INT4 Help in Systems Terms?}{5}{subsection.38}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Contributions.}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background and Motivation}{1}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Method}{1}{section.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared memory, accumulated in FP32, and written to output.}}{1}{figure.caption.4}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:arch}{{1}{1}{Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared memory, accumulated in FP32, and written to output}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Experimental Setup}{1}{section.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Representative decode shapes (Llama-style).}}{2}{table.caption.6}\protected@file@percent }
+\newlabel{tab:shapes}{{1}{2}{Representative decode shapes (Llama-style)}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Results}{2}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Representative Shapes and Key Results}{2}{subsection.8}\protected@file@percent }
+\newlabel{tab:shapes}{{\caption@xref {tab:shapes}{ on input line 6}}{2}{Representative Shapes and Key Results}{table.caption.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Summary of key model shapes (M=1).}}{2}{table.caption.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Where Does INT4 Help?}{2}{subsection.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Prefill vs Decode}{2}{subsection.12}\protected@file@percent }
+\newlabel{fig:speedup-vs-n}{{2a}{2}{Speedup vs output width}{figure.caption.11}{}}
+\newlabel{sub@fig:speedup-vs-n}{{a}{2}{Speedup vs output width}{figure.caption.11}{}}
+\newlabel{fig:family-latency-m1}{{2b}{2}{Latency by layer family}{figure.caption.11}{}}
+\newlabel{sub@fig:family-latency-m1}{{b}{2}{Latency by layer family}{figure.caption.11}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Decode performance across representative shapes.}}{2}{figure.caption.11}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Prefill vs decode speedup by family.}}{2}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:prefill-decode}{{3}{2}{Prefill vs decode speedup by family}{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Why Does INT4 Help (or Hurt)?}{2}{subsection.14}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Hardware utilization comparison (FP16 vs INT4).}}{3}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:util-compare}{{4}{3}{Hardware utilization comparison (FP16 vs INT4)}{figure.caption.15}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Dequantization breakdown for representative decode shapes.}}{3}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:dequant-breakdown}{{5}{3}{Dequantization breakdown for representative decode shapes}{figure.caption.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}A Regime Model for INT4 Decode GEMMs}{3}{subsection.17}\protected@file@percent }
+\newlabel{fig:peak-compute}{{6a}{3}{Peak compute utilization (SM throughput)}{figure.caption.19}{}}
+\newlabel{sub@fig:peak-compute}{{a}{3}{Peak compute utilization (SM throughput)}{figure.caption.19}{}}
+\newlabel{fig:roofline}{{6b}{3}{Roofline view (arithmetic intensity vs TFLOPs)}{figure.caption.19}{}}
+\newlabel{sub@fig:roofline}{{b}{3}{Roofline view (arithmetic intensity vs TFLOPs)}{figure.caption.19}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Utilization regime view. INT4 shifts execution away from bandwidth saturation and toward a mixed compute--memory regime.}}{3}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:regime-utilization}{{6}{3}{Utilization regime view. INT4 shifts execution away from bandwidth saturation and toward a mixed compute--memory regime}{figure.caption.19}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Regime boundary: speedup vs arithmetic intensity.}}{3}{figure.caption.20}\protected@file@percent }
+\newlabel{fig:regime-boundary}{{7}{3}{Regime boundary: speedup vs arithmetic intensity}{figure.caption.20}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6}Systems-Level View}{4}{subsection.21}\protected@file@percent }
+\newlabel{fig:batch-scaling}{{8a}{4}{Latency vs batch ($K=N=4096$)}{figure.caption.22}{}}
+\newlabel{sub@fig:batch-scaling}{{a}{4}{Latency vs batch ($K=N=4096$)}{figure.caption.22}{}}
+\newlabel{fig:tps}{{8b}{4}{Throughput (tokens/sec) vs batch ($K=N=4096$)}{figure.caption.22}{}}
+\newlabel{sub@fig:tps}{{b}{4}{Throughput (tokens/sec) vs batch ($K=N=4096$)}{figure.caption.22}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Batch scaling tradeoffs for a representative decode shape.}}{4}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:batch-scaling-and-tps}{{8}{4}{Batch scaling tradeoffs for a representative decode shape}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7}Regime Map and Kernel Composition}{4}{subsection.23}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Top shapes by CUDA time (Nsight Systems).}}{4}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:kernel-time}{{9}{4}{Top shapes by CUDA time (Nsight Systems)}{figure.caption.24}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Decode regime map (M=1) across $K$ and $N$.}}{4}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:heatmap}{{10}{4}{Decode regime map (M=1) across $K$ and $N$}{figure.caption.25}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{4}{section.26}\protected@file@percent }
 \citation{smoothquant}
 \citation{gptq}
 \citation{awq}
@@ -45,17 +59,6 @@
 \citation{tensorrtllm}
 \citation{cutlass}
 \citation{cublaslt}
-\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Batch scaling for decode ($K=N=4096$).}}{6}{figure.40}\protected@file@percent }
-\newlabel{fig:batch-scaling}{{11}{6}{Batch scaling for decode ($K=N=4096$)}{figure.40}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Decode throughput (tokens/sec) vs batch size.}}{6}{figure.42}\protected@file@percent }
-\newlabel{fig:tps}{{12}{6}{Decode throughput (tokens/sec) vs batch size}{figure.42}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.7}Regime Map and Kernel Composition}{6}{subsection.43}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Decode regime map (M=1) across $K$ and $N$.}}{6}{figure.45}\protected@file@percent }
-\newlabel{fig:heatmap}{{13}{6}{Decode regime map (M=1) across $K$ and $N$}{figure.45}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces Top shapes by CUDA time (Nsight Systems).}}{6}{figure.47}\protected@file@percent }
-\newlabel{fig:kernel-time}{{14}{6}{Top shapes by CUDA time (Nsight Systems)}{figure.47}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{6}{section.48}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{6}{section.49}\protected@file@percent }
 \bibstyle{plain}
 \bibdata{references}
 \bibcite{flashattention2}{1}
@@ -65,6 +68,7 @@
 \bibcite{cutlass}{5}
 \bibcite{tensorrtllm}{6}
 \bibcite{smoothquant}{7}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Limitations}{7}{section.50}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {9}Conclusion}{7}{section.51}\protected@file@percent }
-\gdef \@abspage@last{7}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Work}{5}{section.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Limitations}{5}{section.28}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}Conclusion}{5}{section.29}\protected@file@percent }
+\gdef \@abspage@last{5}

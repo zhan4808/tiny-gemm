@@ -5,7 +5,14 @@ KV projections with $N=1024$. Profiling uses Nsight Compute; wall-clock timings
 are reported from the benchmark harness (profilers replay kernels and inflate
 timings).
 
-\begin{table}[t]
+Each reported latency is the median of 50 runs after 10 warmup iterations; the
+coefficient of variation is below 9\% across repetitions in our sweep. All
+FP16 baselines use vendor-optimized libraries (\texttt{torch.matmul}/cuBLAS)
+under identical tensor shapes and launch conditions. Both FP16 and INT4
+accumulate into FP32, and timings synchronize before and after loops to exclude
+host-side overhead.
+
+\begin{table}[h]
   \centering
   \caption{Representative decode shapes (Llama-style).}
   \label{tab:shapes}

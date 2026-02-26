@@ -6,4 +6,4 @@ limited parallelism can outweigh the bandwidth savings. These findings align
 with practical inference constraints in decode-heavy serving. Our results
 suggest that weight-only INT4 should not be applied universally in decode
 pipelines; kernel-aware deployment decisions are necessary to avoid regressions
-on narrow projections.
+on narrow projections and to target the shapes that dominate runtime.

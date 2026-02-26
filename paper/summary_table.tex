@@ -1,15 +1,19 @@
-\begin{table*}[t]
-  \centering
-  \caption{Summary of key decode shapes (M=1).}
-  \label{tab:summary}
-  \begin{tabular}{lccccl}
-    \toprule
-    Shape & FP16 (ms) & INT4 (ms) & Speedup & Bound \\
-    \midrule
-    KV proj & 0.027 & 0.043 & 0.62x & Dequant \\
-    Q proj & 0.075 & 0.047 & 1.58x & Mixed \\
-    FFN up & 0.239 & 0.067 & 3.58x & Memory \\
-    FFN down & 0.258 & 0.152 & 1.69x & Memory \\
-    \bottomrule
-  \end{tabular}
-\end{table*}
+% summary_table.tex  (NO table/table* here)
+
+\vspace{0.2cm}
+\begin{table}[h]
+    \centering
+    \label{tab:shapes}
+    \begin{tabular}{lccccl}
+      \toprule
+      Shape & FP16 (ms) & INT4 (ms) & Speedup & Bound \\
+      \midrule
+      KV proj   & 0.027 & 0.043 & 0.62x & Dequant \\
+      Q proj    & 0.075 & 0.047 & 1.58x & Mixed \\
+      FFN up    & 0.239 & 0.067 & 3.58x & Memory \\
+      FFN down  & 0.258 & 0.152 & 1.69x & Memory \\
+      \bottomrule
+        \end{tabular}
+    \caption{Summary of key model shapes (M=1).}
+\end{table}
+\vspace{-0.55cm}

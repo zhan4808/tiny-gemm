@@ -4,7 +4,7 @@ bit-packed weight tensors. The kernel unpacks INT4 values into FP32 accumulators
 inside the kernel and uses static configurations keyed by shape family and batch
 bucket. We evaluate three baselines:
 
-\begin{itemize}
+\begin{itemize}[leftmargin=*,itemsep=0.2em,topsep=0.2em]
   \item \textbf{FP16}: \texttt{torch.matmul} as the standard deployment baseline.
   \item \textbf{Dequantized FP16}: INT4 quantize $\rightarrow$ dequant $\rightarrow$ FP16 GEMM.
   \item \textbf{INT4 fused}: packed INT4 GEMM kernel (Tiny-GEMM).
@@ -13,10 +13,9 @@ bucket. We evaluate three baselines:
 The current kernel performs dot products in FP32 and does not yet leverage
 INT4 tensor core MMA instructions; exploiting INT4 MMA is future work.
 
-\begin{figure}[t]
+\begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{architecture_diagram.png}
-  \caption{Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared
-  memory, accumulated in FP32, and written to output.}
+  \resizebox{\linewidth}{!}{\input{figures/architecture_diagram}}
+  \caption{Tiny-GEMM kernel flow: packed INT4 weights are unpacked in shared memory, accumulated in FP32, and written to output.}
   \label{fig:arch}
 \end{figure}

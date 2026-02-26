@@ -1,158 +1,281 @@
+% results.tex
 \section{Results}
+\vspace{-0.33cm}
 
-\subsection{Story Figure}
-We summarize the core claim with a single panel that connects performance
-regimes, utilization shift, and dequantization cost.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.92\linewidth]{hero_figure.png}
-  \caption{INT4 helps when bandwidth dominates and dequant is amortized.}
-  \label{fig:hero}
-\end{figure}
-\FloatBarrier
+\subsection{Representative Shapes and Key Results}
+We focus on Llama-style decode GEMMs with small batch ($M \le 8$) and large hidden
+dimensions ($K,N \in \{4096,14336\}$), plus a narrow KV projection ($N=1024$).
+Wall-clock timings are from our benchmark harness (profilers replay kernels and
+inflate timings); these shapes dominate autoregressive decode in Llama-style
+transformers.
 
+% Keep your existing Table 1 (representative shapes) wherever it currently lives.
+% Keep your existing summary_table.tex input wherever it currently lives.
 \input{summary_table}
-\FloatBarrier
 
 \subsection{Where Does INT4 Help?}
-We identify the regime where INT4 improves decode performance.
-Figure~\ref{fig:speedup-vs-n} shows speedup vs FP16 as $N$ increases (fixed
-$K=4096$). INT4 underperforms on narrow projections but provides strong gains
-for wide FFN layers. Figure~\ref{fig:family-latency} groups results by layer
-family, showing the same trend across M=1 and M=8.
+We first identify the empirical performance regimes across representative
+decode GEMMs. Figure~\ref{fig:speedup-vs-n} reports speedup relative to FP16
+as output width $N$ increases at fixed $K=4096$, isolating the effect of layer
+dimension on performance.
 
-\begin{figure}[t]
-  \centering
+\begin{figure}[h]
+\centering
+\begin{subfigure}{\linewidth}
   \includegraphics[width=\linewidth]{speedup_vs_n_k4096.png}
-  \caption{Speedup vs output width $N$ (decode shapes, $K=4096$).}
+  \vspace{-0.7cm}
+  \caption{Speedup vs output width.}
   \label{fig:speedup-vs-n}
+\end{subfigure}
+
+\vspace{-0.05cm}
+
+\begin{subfigure}{\linewidth}
+  \includegraphics[width=\linewidth]{family_latency_m1.png}
+  \vspace{-0.7cm}
+  \caption{Latency by layer family.}
+  \label{fig:family-latency-m1}
+\end{subfigure}
+\vspace{-0.7cm}
+
+\caption{Decode performance across representative shapes.}
+%\label{fig:decode-performance}
 \end{figure}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{family_latency_m1.png}
-  \caption{Latency by shape family (M=1).}
-  \label{fig:family-latency}
-\end{figure}
-\FloatBarrier
+INT4 underperforms for narrow projections (e.g., KV projections with small $N$),
+but delivers substantial gains as matrix width increases, reaching up to
+$3.7\times$ speedup for wide FFN layers. Figure~\ref{fig:family-latency-m1}
+confirms this behavior at the layer-family level: projection layers show limited
+or negative benefit, while FFN layers consistently improve. The KV projection
+regression persists for both $M=1$ and $M=8$, indicating a geometry-driven
+transition rather than a batch-size effect. Across all $M \in \{1,\dots,64\}$,
+the transition remains near $N \approx 2$--$4$K for $K=4096$.
 
 \subsection{Prefill vs Decode}
-We compare prefill-like ($M \gg 1$) and decode-like ($M \le 8$) regimes using a
-fixed shape family grouping. INT4 benefits are stronger in decode for wide FFN
-layers but remain mixed for narrow projections.
+We compare prefill-like ($M \gg 1$) and decode-like ($M \le 8$) regimes using
+the same layer-family grouping (Figure~\ref{fig:prefill-decode}). Prefill
+increases effective arithmetic intensity by amortizing quantization overhead
+across more work, yielding consistent INT4 speedups across shapes.
 
-\begin{figure}[t]
+Decode operates in a latency-dominated regime where small batch sizes expose
+fixed overheads such as dequantization and launch cost, making INT4 benefits
+shape-dependent. For example, FFN-up improves by roughly 3.5$\times$ in decode
+while KV projection remains below 1$\times$; in prefill, FFN-up is about 3.0$\times$
+and KV improves to roughly 2.3$\times$.
+
+\vspace{0.25cm}
+\begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{prefill_vs_decode_speedup.png}
+  \vspace{-0.6em}
   \caption{Prefill vs decode speedup by family.}
   \label{fig:prefill-decode}
+  \vspace{-0.8em}
 \end{figure}
-\FloatBarrier
 
 \subsection{Why Does INT4 Help (or Hurt)?}
-We isolate dequantization overhead and attribute bottleneck shifts. The
-dequantization microbenchmark (Figure~\ref{fig:dequant-breakdown}) shows that
-fixed INT4 overhead dominates narrow projections, explaining regressions on
-KV-like shapes. Hardware counters provide a complementary view: INT4 shifts
-utilization compared to FP16 (Figure~\ref{fig:util-compare}), while a roofline
-scatter illustrates the memory-bound regime (Figure~\ref{fig:roofline}).
-On the A10G, FP16 reaches \~76\% peak DRAM throughput while INT4 reaches
-\~27\%, consistent with a shift from bandwidth-dominated FP16 to a mixed regime.
+We attribute the observed performance regimes using hardware counters and a
+targeted dequantization microbenchmark. Together, these measurements explain
+why INT4 provides large gains for some decode shapes while regressing on others.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.9\linewidth]{peak_compute_utilization.png}
-  \caption{Peak compute utilization proxy (SM throughput) for FP16 vs INT4.}
-  \label{fig:peak-compute}
-\end{figure}
+Figure~\ref{fig:util-compare} compares hardware utilization between FP16 and
+INT4 kernels. On the A10G, FP16 decode GEMMs operate close to the bandwidth
+limit: memory throughput reaches approximately 75--77\% of peak DRAM bandwidth
+while achieved compute throughput remains relatively low, indicating a strongly
+memory-bound regime where performance is limited by weight movement rather than
+arithmetic capability. INT4 weight packing reduces memory traffic and shifts the execution regime.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{dequant_breakdown.png}
-  \caption{Dequantization breakdown for representative decode shapes.}
-  \label{fig:dequant-breakdown}
-\end{figure}
-
-\begin{figure}[t]
+\begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{ncu_utilization_comparison.png}
+  \vspace{-0.6em}
   \caption{Hardware utilization comparison (FP16 vs INT4).}
   \label{fig:util-compare}
 \end{figure}
 
-\begin{figure}[t]
+However, reduced memory traffic alone does not guarantee speedup. The
+dequantization microbenchmark in Figure~\ref{fig:dequant-breakdown}
+isolates the cost of unpacking INT4 weights during execution. For narrow
+projection layers (e.g., KV projections), total work per launch is small,
+and the fixed dequantization overhead constitutes a significant fraction
+of runtime. As a result, INT4 kernels can underperform FP16 despite lower
+memory traffic.
+
+In contrast, wide FFN projections provide sufficient arithmetic work to
+amortize dequantization cost, allowing INT4 to achieve substantial latency
+improvements. Overall, INT4 improves decode performance when reduced memory
+movement outweighs added dequantization overhead.
+
+\begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{roofline_scatter.png}
-  \caption{Estimated roofline scatter (arithmetic intensity vs TFLOPs).}
-  \label{fig:roofline}
+  \includegraphics[width=\linewidth]{dequant_breakdown.png}
+  \vspace{-0.6em}
+  \caption{Dequantization breakdown for representative decode shapes.}
+  \label{fig:dequant-breakdown}
+  \vspace{-0.8em}
 \end{figure}
-\FloatBarrier
 
 \subsection{A Regime Model for INT4 Decode GEMMs}
-We model total latency as:
+We summarize the observed performance behavior using a simple latency
+decomposition:
 \begin{equation}
-T_{\text{total}} = T_{\text{launch}} + T_{\text{mem}}(W) + T_{\text{dequant}} + T_{\text{compute}}.
+T_{\text{total}} = T_{\text{launch}} + T_{\text{mem}}(W) +
+T_{\text{dequant}} + T_{\text{compute}}.
 \end{equation}
-Narrow projections are dominated by fixed $T_{\text{dequant}}$ and limited
-parallelism, while wide FFN layers are dominated by $T_{\text{mem}}$. INT4
-reduces $T_{\text{mem}}$, creating a transition boundary in arithmetic intensity
-space. Figure~\ref{fig:regime-boundary} visualizes this boundary.
-In our sweep, the transition occurs near $\alpha \approx 8$ FLOPs/byte.
 
-\begin{center}
-\fbox{\parbox{0.95\linewidth}{
-\textbf{INT4 Decision Rule.} INT4 improves decode latency when the memory savings
-from FP16 $\rightarrow$ INT4 exceed dequantization cost:
-$T_{\text{mem}}^{\text{FP16}} - T_{\text{mem}}^{\text{INT4}} > T_{\text{dequant}}$.
-Equivalently, INT4 helps when arithmetic intensity exceeds a threshold $\alpha$
-for the target shape family.
-}}
-\end{center}
+This formulation captures the competing costs exposed in decode workloads.
+Narrow projections perform limited arithmetic per launch and are therefore
+dominated by fixed overheads, particularly $T_{\text{dequant}}$ and launch
+latency. In contrast, wide FFN layers perform substantially more work per
+memory access, making execution primarily bandwidth-limited through
+$T_{\text{mem}}$.
 
-\begin{figure}[t]
+INT4 weight packing reduces memory traffic, decreasing $T_{\text{mem}}$ and
+shifting execution toward a mixed compute--memory regime. Compute utilization
+and roofline views support this model. INT4 achieves \~23\% peak SM throughput
+vs \~32\% for FP16 (about 28\% lower), reflecting reduced compute pressure under
+the INT4 kernel. The roofline view in Figure~\ref{fig:roofline} illustrates this
+shift away from bandwidth saturation.
+
+\begin{figure}[h]
+  \centering
+
+  \begin{subfigure}[t]{0.4\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{peak_compute_utilization.png}
+    \caption{Peak compute utilization (SM throughput).}
+    \label{fig:peak-compute}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.58\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{roofline_scatter.png}
+    \caption{Roofline view (arithmetic intensity vs TFLOPs).}
+    \label{fig:roofline}
+  \end{subfigure}
+
+  \vspace{-0.6em}
+  \caption{Utilization regime view. INT4 shifts execution away from bandwidth
+  saturation and toward a mixed compute--memory regime.}
+  \label{fig:regime-utilization}
+\end{figure}
+
+INT4 weight packing introduces a transition boundary in arithmetic-intensity
+space separating overhead-limited and bandwidth-limited regimes. In our sweep,
+the boundary occurs near $\alpha \approx 8$ FLOPs/byte.
+
+\begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{regime_boundary.png}
+  \vspace{-0.8cm}
   \caption{Regime boundary: speedup vs arithmetic intensity.}
   \label{fig:regime-boundary}
 \end{figure}
-\FloatBarrier
 
-\subsection{When Does INT4 Help in Systems Terms?}
-We examine batch scaling and throughput to connect kernel behavior to decode
-latency constraints. Figure~\ref{fig:batch-scaling} shows latency vs batch size
-for a representative decode shape; Figure~\ref{fig:tps} reports tokens/sec.
+Figure~\ref{fig:regime-boundary} visualizes this transition. Shapes below the
+boundary remain dominated by fixed overheads and therefore see limited benefit
+from INT4, while shapes above it achieve consistent speedups as reduced memory
+movement outweighs dequantization cost.
 
-\begin{figure}[t]
+This model consolidates the empirical observations from earlier sections:
+narrow projections operate below the boundary, while increasing $N$ raises
+arithmetic intensity and shifts execution into a bandwidth-dominated regime
+where INT4 becomes advantageous.
+
+\begin{center}
+\fbox{\parbox{0.97\linewidth}{
+\textbf{INT4 Decision Rule.} INT4 improves decode latency when the memory savings
+from FP16 $\rightarrow$ INT4 exceed dequantization cost:
+$T_{\text{mem}}^{\text{FP16}} - T_{\text{mem}}^{\text{INT4}} > T_{\text{dequant}}$.
+}}
+\end{center}
+
+In practice, this boundary provides a deployment guideline:
+quantization is most effective for wide decode GEMMs and FFN layers,
+while narrow projection layers may benefit more from kernel fusion or
+launch amortization strategies than from aggressive weight compression.
+
+\subsection{Systems-Level View}
+Because autoregressive decoding executes one token at a time, we connect kernel-level behavior to end-to-end decode constraints through batch scaling and throughput analysis. These latency–throughput tradeoffs directly determine user-visible response time in interactive LLM serving.
+
+Figure~\ref{fig:batch-scaling-and-tps} shows that latency grows sublinearly
+with batch size while throughput increases substantially, reflecting improved
+hardware utilization as launch overhead is amortized. 
+
+\begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{batch_scaling_k4096_n4096.png}
-  \caption{Batch scaling for decode ($K=N=4096$).}
-  \label{fig:batch-scaling}
+
+  \begin{subfigure}{\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{batch_scaling_k4096_n4096.png}
+    \vspace{-0.6cm}
+    \caption{Latency vs batch ($K=N=4096$).}
+    \label{fig:batch-scaling}
+  \end{subfigure}
+
+  %\vspace{-0.6em}
+
+  \begin{subfigure}{\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{tokens_per_sec_k4096_n4096.png}
+    \vspace{-0.5cm}
+    \caption{Throughput (tokens/sec) vs batch ($K=N=4096$).}
+    \label{fig:tps}
+  \end{subfigure}
+
+  \vspace{-0.5em}
+  \caption{Batch scaling tradeoffs for a representative decode shape.}
+  \label{fig:batch-scaling-and-tps}
+  \vspace{-0.8em}
 \end{figure}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{tokens_per_sec_k4096_n4096.png}
-  \caption{Decode throughput (tokens/sec) vs batch size.}
-  \label{fig:tps}
-\end{figure}
-\FloatBarrier
+  \vspace{0.8em}
+
+For small batches ($M=1$–$4$), decode latency is dominated by fixed kernel overheads, limiting the benefit of additional compute efficiency. As batch size increases, INT4 benefits become more consistent because memory traffic and compute utilization rather than launch overhead determine performance.
+
+These results highlight an important systems tradeoff: optimizations that
+improve single-token latency do not always maximize throughput, and deployment
+targets (interactive latency vs. serving throughput) determine whether INT4
+provides meaningful gains. This behavior mirrors production serving systems, where batching improves throughput but increases token latency, creating a practical optimization tradeoff.
+
 
 \subsection{Regime Map and Kernel Composition}
-To summarize regimes, we include a decode heatmap (Figure~\ref{fig:heatmap}) and
-kernel time composition (Figure~\ref{fig:kernel-time}).
+We connect kernel-level behavior to system-level impact by examining where
+decode runtime is actually spent and how performance regimes distribute
+across model shapes.
 
-\begin{figure}[t]
+Figure~\ref{fig:kernel-time} shows that a small set of wide FFN GEMMs dominates
+total CUDA execution time during decode. Although transformer layers contain
+many projection operations, runtime is heavily concentrated in
+high-dimensional FFN computations. Consequently, optimizing these shapes yields
+disproportionate end-to-end latency improvements, motivating decode-focused
+specialization rather than uniform optimization across all layers.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{kernel_time_top_shapes.png}
+  \vspace{-0.6cm}
+  \caption{Top shapes by CUDA time (Nsight Systems).}
+  \label{fig:kernel-time}
+\end{figure}
+
+Figure~\ref{fig:heatmap} complements this view by visualizing performance
+regimes across decode shapes. INT4 provides consistent speedups only once
+arithmetic intensity exceeds a threshold determined primarily by output width
+and hidden dimension. Regions with small $N$ remain dominated by
+dequantization and launch overhead, explaining regressions observed for
+KV-like projections.
+
+
+\begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{int4_speedup_heatmap_m1.png}
+  \vspace{-0.8cm}
   \caption{Decode regime map (M=1) across $K$ and $N$.}
   \label{fig:heatmap}
 \end{figure}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{kernel_time_top_shapes.png}
-  \caption{Top shapes by CUDA time (Nsight Systems).}
-  \label{fig:kernel-time}
-\end{figure}
-\FloatBarrier
+Together, these results unify the regime analysis with runtime behavior: the
+layers that dominate decode execution are those above the regime boundary where
+INT4 provides the largest benefit.

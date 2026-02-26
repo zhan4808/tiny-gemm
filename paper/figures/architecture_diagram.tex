@@ -1,0 +1,16 @@
+\begin{tikzpicture}[
+  node distance=0.8cm,
+  block/.style={rounded corners, draw=black, thick, minimum height=0.8cm, minimum width=2.2cm, align=center, font=\scriptsize},
+  arrow/.style={-Latex, thick}
+]
+\node[block, fill=teal!40] (act) {Activations\\FP16};
+\node[block, fill=orange!70, right=of act] (wgt) {Packed INT4\\Weights};
+\node[block, fill=red!60, right=of wgt] (unpack) {Shared Mem\\Unpack};
+\node[block, fill=blue!60, right=of unpack] (acc) {FP32\\Accumulate};
+\node[font=\small, right=1.2cm of acc] (out) {Output};
+
+\draw[arrow] (act) -- (wgt);
+\draw[arrow] (wgt) -- (unpack);
+\draw[arrow] (unpack) -- (acc);
+\draw[arrow] (acc) -- (out);
+\end{tikzpicture}

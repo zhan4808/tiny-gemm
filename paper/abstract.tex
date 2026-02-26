@@ -5,8 +5,9 @@ packed INT4 GEMM kernel in Triton targeted at decode-heavy shapes, and a
 measurement-driven analysis of when quantization helps or hurts. We compare
 FP16, dequantized FP16, and INT4 fused kernels, attribute performance using
 hardware counters, and isolate dequantization overhead with microbenchmarks.
-Results on an A10G show substantial gains for wide FFN decode shapes while
-highlighting regimes where dequant overhead dominates. We provide a reproducible
-evaluation harness and a focused set of figures that connect kernel behavior to
+Results on an A10G show up to 3.7$\times$ speedup for wide FFN decode shapes,
+while narrow projections regress when dequantization dominates. We provide a
+regime model and decision rule that predicts when INT4 helps, backed by hardware
+utilization and roofline evidence. Our evaluation connects kernel behavior to
 systems-level inference constraints.
 \end{abstract}

@@ -3,4 +3,5 @@ Decode GEMMs (e.g., Q/K/V projections and FFN layers) typically use $M \in
 \{1,2,4,8\}$ and hidden dimensions in the 4K--16K range. For these shapes, the
 dominant costs are memory movement and kernel launch overhead, not peak compute.
 This motivates INT4 weight packing and fused computation to reduce traffic and
-improve utilization.
+improve utilization, while requiring careful attention to dequantization and
+launch overheads in the small-batch regime.

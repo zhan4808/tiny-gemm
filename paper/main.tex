@@ -8,11 +8,37 @@
 \usepackage[hypertexnames=false]{hyperref}
 \usepackage{xcolor}
 \usepackage{amsmath}
-\usepackage{placeins}
 \usepackage{float}
 \usepackage{dblfloatfix}
+\usepackage{subcaption}   % for subfigure
+% \usepackage[section]{placeins}
+\usepackage{placeins}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{verbatim}
+\usepackage{comment}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
 
-\graphicspath{{figures/}}
+
+
+\setcounter{topnumber}{2}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.85}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\dblfloatpagefraction}{0.85}
+
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\setlength{\dbltextfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\dblfloatsep}{6pt plus 2pt minus 2pt}
+
+\graphicspath{{./figures/}{figures/}}
 
 \title{Tiny-GEMM: Packed INT4 Triton GEMM for Decode-Heavy LLM Inference}
 \author{Robert Zhang}
