@@ -5,6 +5,9 @@ the decode phase of LLM inference (small batch, skinny matrices). The goal is
 not peak FLOPs, but **latency-critical utilization** on cost-effective GPUs
 where launch overhead and memory traffic dominate.
 
+[Paper Link](paper/main.pdf)
+
+
 ## Summary
 
 **Problem:** Decode GEMMs are small, bandwidth-bound, and poorly utilize GPU
